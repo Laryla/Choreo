@@ -50,7 +50,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const { theme, setLight, setDark } = useTheme();
-  const [threads, setThreads] = useState<{ thread_id: string; status: string }[]>([]);
+  const [threads, setThreads] = useState<{ thread_id: string; status: string; title?: string }[]>([]);
 
   useEffect(() => {
     const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000";
@@ -117,7 +117,7 @@ export default function Sidebar() {
               key={t.thread_id}
               className="text-left px-4 py-1.5 text-[12px] text-[#666] dark:text-[#555] hover:bg-[#ddd9d0] dark:hover:bg-[#1e1e1e] hover:text-[#0f0f0f] dark:hover:text-[#e8e8e8] truncate flex items-center gap-2"
             >
-              <span className="truncate">对话 {t.thread_id.slice(0, 8)}</span>
+              <span className="truncate">{t.title ?? `对话 ${t.thread_id.slice(0, 8)}`}</span>
               {t.status === "interrupted" && (
                 <span className="text-[9px] text-amber-500 flex-shrink-0">●</span>
               )}
