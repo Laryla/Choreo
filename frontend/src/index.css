@@ -7,5 +7,5 @@ html, body, #root {
 }
 
 body {
-  @apply bg-[#f5f2eb] dark:bg-[#141414];
+  @apply bg-[#f5f2eb];
 }

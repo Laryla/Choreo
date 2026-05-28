@@ -55,7 +55,7 @@ const RECENT_THREADS = [
 ];
 
 export default function Sidebar() {
-  const { theme, toggle } = useTheme();
+  const { theme, setLight, setDark } = useTheme();
 
   return (
     <aside className="w-[230px] flex-shrink-0 flex flex-col h-full bg-[#ebe7df] dark:bg-[#141414] border-r border-[#ddd9d0] dark:border-[#202020]">
@@ -116,7 +116,7 @@ export default function Sidebar() {
         {/* Theme toggle */}
         <div className="flex gap-0.5 bg-[#d6d0c7] dark:bg-[#1e1e1e] rounded-lg p-0.5">
           <button
-            onClick={toggle}
+            onClick={setLight}
             className={`px-2 py-1 rounded-md text-[10px] transition-colors ${
               theme === "light"
                 ? "bg-[#f0ede6] shadow-sm text-[#0f0f0f]"
@@ -124,7 +124,7 @@ export default function Sidebar() {
             }`}
           >☀️</button>
           <button
-            onClick={toggle}
+            onClick={setDark}
             className={`px-2 py-1 rounded-md text-[10px] transition-colors ${
               theme === "dark"
                 ? "bg-[#2e2e2e] text-[#e8e8e8]"
