@@ -28,7 +28,7 @@ class TitleMiddleware(AgentMiddleware):
             config = getattr(runtime, "config", {}) or {}
             thread_id = config.get("configurable", {}).get("thread_id")
 
-        if not thread_id or thread_store.get_title(thread_id):
+        if not thread_id or await thread_store.get_title(thread_id):
             return None  # 已有标题或无法确定线程，跳过
 
         # 取第一条用户消息
@@ -45,9 +45,9 @@ class TitleMiddleware(AgentMiddleware):
             prompt = _PROMPT.format(max_chars=self._max_chars, content=content)
             resp = await self._llm.ainvoke(prompt)
             title = str(resp.content).strip().strip("「」《》\"""''")
-            thread_store.set_title(thread_id, title[:self._max_chars] or content[:self._max_chars])
+            await thread_store.set_title(thread_id, title[:self._max_chars] or content[:self._max_chars])
         except Exception:
             # LLM 调用失败时降级：截断用户消息
-            thread_store.set_title(thread_id, content[:self._max_chars])
+            await thread_store.set_title(thread_id, content[:self._max_chars])
 
         return None

@@ -16,14 +16,13 @@ RUN_QUEUES: dict[str, asyncio.Queue] = {}
 
 @router.post("/{thread_id}/runs/stream")
 async def stream_run(thread_id: str, body: RunInput):
-    if not thread_store.get(thread_id):
+    if not await thread_store.get(thread_id):
         raise HTTPException(404, "thread not found")
 
     run_id = str(uuid.uuid4())
     queue: asyncio.Queue = asyncio.Queue()
     RUN_QUEUES[run_id] = queue
 
-    # input 为 None 表示从 interrupt 恢复
     resume_decision = None
     if body.input is None:
         resume_decision = pop_decision(thread_id)
@@ -45,7 +44,7 @@ async def _run_agent(
     resume_decision: dict | None,
 ):
     await queue.put({"event": "metadata", "data": {"run_id": run_id}})
-    thread_store.set_status(thread_id, "running")
+    await thread_store.set_status(thread_id, "running")
 
     config = {"configurable": {"thread_id": thread_id}}
 
@@ -66,7 +65,6 @@ async def _run_agent(
             data = chunk.get("data")
 
             if chunk_type == "messages":
-                # data 是 (BaseMessage, metadata) 元组
                 token, _ = data
                 content = getattr(token, "content", "")
                 if isinstance(content, str) and content:
@@ -82,7 +80,7 @@ async def _run_agent(
                         {"value": i.value if hasattr(i, "value") else i}
                         for i in interrupts
                     ]
-                    thread_store.set_status(thread_id, "interrupted")
+                    await thread_store.set_status(thread_id, "interrupted")
                     await queue.put({
                         "event": "updates",
                         "data": {"__interrupt__": interrupt_payload},
@@ -91,9 +89,9 @@ async def _run_agent(
     except Exception as e:
         await queue.put({"event": "error", "data": {"message": str(e)}})
     finally:
-        state = thread_store.get(thread_id)
+        state = await thread_store.get(thread_id)
         if state and state.status == "running":
-            thread_store.set_status(thread_id, "idle")
+            await thread_store.set_status(thread_id, "idle")
         await queue.put(None)
 
 
