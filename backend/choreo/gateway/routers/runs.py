@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 from choreo.models.run import RunInput
-from choreo.agents import agent
+from choreo.agents import get_agent
 from choreo.store.thread_store import thread_store
 from choreo.agents.middlewares import pop_decision
 
@@ -55,7 +55,7 @@ async def _run_agent(
         run_input = {"messages": messages}
 
     try:
-        async for chunk in agent.astream(
+        async for chunk in get_agent().astream(
             run_input,
             config=config,
             stream_mode=["updates", "messages"],
