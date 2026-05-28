@@ -1,4 +1,5 @@
 // src/components/Sidebar/Sidebar.tsx
+import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -47,15 +48,29 @@ const NAV_ITEMS = [
   },
 ];
 
-const RECENT_THREADS = [
-  "每周五整理 commit 脚本",
-  "自动化发布流程",
-  "代码审查通知配置",
-  "依赖更新检测脚本",
-];
-
 export default function Sidebar() {
   const { theme, setLight, setDark } = useTheme();
+  const [threads, setThreads] = useState<{ thread_id: string; status: string }[]>([]);
+
+  useEffect(() => {
+    const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000";
+
+    const fetchThreads = async () => {
+      try {
+        const res = await fetch(`${API}/threads/`);
+        if (res.ok) {
+          const data = await res.json();
+          setThreads(data);
+        }
+      } catch {
+        // 后端未启动时静默失败
+      }
+    };
+
+    fetchThreads();
+    const id = setInterval(fetchThreads, 5000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <aside className="w-[230px] flex-shrink-0 flex flex-col h-full bg-[#ebe7df] dark:bg-[#141414] border-r border-[#ddd9d0] dark:border-[#202020]">
@@ -94,14 +109,21 @@ export default function Sidebar() {
         最近对话
       </div>
       <div className="flex-1 overflow-hidden flex flex-col">
-        {RECENT_THREADS.map((t) => (
-          <button
-            key={t}
-            className="text-left px-4 py-1.5 text-[12px] text-[#666] dark:text-[#555] hover:bg-[#ddd9d0] dark:hover:bg-[#1e1e1e] hover:text-[#0f0f0f] dark:hover:text-[#e8e8e8] truncate"
-          >
-            {t}
-          </button>
-        ))}
+        {threads.length === 0 ? (
+          <p className="px-4 py-2 text-[11px] text-[#bbb] dark:text-[#333]">暂无对话</p>
+        ) : (
+          threads.slice(0, 10).map((t) => (
+            <button
+              key={t.thread_id}
+              className="text-left px-4 py-1.5 text-[12px] text-[#666] dark:text-[#555] hover:bg-[#ddd9d0] dark:hover:bg-[#1e1e1e] hover:text-[#0f0f0f] dark:hover:text-[#e8e8e8] truncate flex items-center gap-2"
+            >
+              <span className="truncate">对话 {t.thread_id.slice(0, 8)}</span>
+              {t.status === "interrupted" && (
+                <span className="text-[9px] text-amber-500 flex-shrink-0">●</span>
+              )}
+            </button>
+          ))
+        )}
       </div>
 
       {/* Footer */}

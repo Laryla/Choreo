@@ -1,3 +1,5 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Message } from "@/store/chatStore";
 
 interface Props { message: Message }
@@ -26,8 +28,10 @@ export default function ChatMessage({ message }: Props) {
       <div className="w-[25px] h-[25px] rounded-full bg-[#1e293b] dark:bg-[#2a2a2a] flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">
         🎼
       </div>
-      <div className="text-[12.5px] leading-[1.7] text-[#1a1a1a] dark:text-[#c8c8c8] whitespace-pre-wrap break-words max-w-[80%]">
-        {message.content}
+      <div className="prose prose-sm dark:prose-invert max-w-[80%] text-[12.5px] leading-[1.7] text-[#1a1a1a] dark:text-[#c8c8c8]">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {message.content}
+        </ReactMarkdown>
       </div>
     </div>
   );
