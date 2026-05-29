@@ -84,6 +84,8 @@ async def import_preview(
 ):
     store = get_skill_store()
     data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(400, "文件过大，最大支持 10 MB")
 
     filename = file.filename or ""
     if filename.endswith(".zip"):
