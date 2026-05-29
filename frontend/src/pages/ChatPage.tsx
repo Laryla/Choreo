@@ -54,7 +54,7 @@ function ChatInner() {
                   </div>
                 )}
                 {streamingContent && (
-                  <div className="text-[12.5px] leading-[1.7] text-[#1a1a1a] dark:text-[#c8c8c8]">
+                  <div className="text-[12.5px] leading-[1.7] text-[#1a1a1a] dark:text-[#c8c8c8] whitespace-pre-wrap">
                     {streamingContent}
                     <span className="inline-block w-0.5 h-4 bg-[#aaa] ml-0.5 animate-pulse align-middle" />
                   </div>

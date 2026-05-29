@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import type { Message } from "@/store/chatStore";
 
 function ThinkingBlock({ content, streaming }: { content: string; streaming?: boolean }) {
@@ -61,7 +62,7 @@ export default function ChatMessage({ message }: Props) {
       <div className="max-w-[80%]">
         {message.thinking && <ThinkingBlock content={message.thinking} />}
         <div className="prose prose-sm dark:prose-invert text-[12.5px] leading-[1.7] text-[#1a1a1a] dark:text-[#c8c8c8]">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
             {message.content}
           </ReactMarkdown>
         </div>

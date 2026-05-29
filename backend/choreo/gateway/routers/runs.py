@@ -4,6 +4,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from langgraph.types import Command
+from langchain_core.messages import AIMessageChunk
 from choreo.models.run import RunInput
 from choreo.agents import get_agent
 from choreo.store.thread_store import thread_store
@@ -66,6 +67,11 @@ async def _run_agent(
 
             if chunk_type == "messages":
                 token, _ = data
+
+                # 只处理流式 chunk，过滤掉 LangGraph 在 model 节点结束后
+                # 再次发出的完整 AIMessage（否则内容会重复发送两次）
+                if not isinstance(token, AIMessageChunk):
+                    continue
 
                 # 1. DeepSeek reasoner: additional_kwargs["reasoning_content"]
                 reasoning = (getattr(token, "additional_kwargs", {}) or {}).get("reasoning_content", "")
