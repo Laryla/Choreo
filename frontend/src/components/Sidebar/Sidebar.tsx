@@ -8,7 +8,14 @@ import { THREADS_KEY } from "@/hooks/useChat";
 const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000";
 const fetcher = (url: string) => fetch(`${API}${url}`).then((r) => r.json());
 
-const NAV_ITEMS = [
+type NavItem = {
+  to: string;
+  label: string;
+  icon: JSX.Element;
+  end?: boolean;
+};
+
+const NAV_ITEMS: NavItem[] = [
   {
     to: "/tasks",
     label: "定时任务",
@@ -29,14 +36,13 @@ const NAV_ITEMS = [
     ),
   },
   {
-    to: "/skills",
-    label: "技能库",
+    to: "/customize",
+    label: "自定义",
+    end: false,
     icon: (
-      <svg className="w-4 h-4 opacity-60 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M3 2h10v12H3z" />
-        <line x1="5" y1="5" x2="11" y2="5" />
-        <line x1="5" y1="8" x2="11" y2="8" />
-        <line x1="5" y1="11" x2="8" y2="11" />
+      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <circle cx="8" cy="8" r="2.5" />
+        <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" />
       </svg>
     ),
   },
@@ -113,6 +119,7 @@ export default function Sidebar() {
           <NavLink
             key={item.label}
             to={item.to}
+            end={item.end}
             title={item.label}
             className={({ isActive }) =>
               `flex items-center transition-colors rounded-lg cursor-pointer ${
