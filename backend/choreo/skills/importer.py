@@ -1,3 +1,7 @@
+import io
+import zipfile
+from pathlib import PurePosixPath
+
 import yaml
 
 from choreo.models.skill import SkillCreate
@@ -32,3 +36,39 @@ def parse_md(text: str, category: str) -> SkillCreate:
         content=body,
         source="manual",
     )
+
+
+def parse_zip(data: bytes) -> tuple[list[SkillCreate], list[str]]:
+    """Parse all .md files from a zip archive.
+
+    Returns (skills, skipped_paths) where skipped_paths are files
+    that failed to parse.
+    """
+    buf = io.BytesIO(data)
+    try:
+        zf = zipfile.ZipFile(buf)
+    except zipfile.BadZipFile as exc:
+        raise ValueError("not a valid zip file") from exc
+
+    md_entries = [
+        n for n in zf.namelist()
+        if n.endswith(".md") and not n.startswith("__MACOSX")
+    ]
+    if not md_entries:
+        raise ValueError("no .md files found in zip")
+
+    skills: list[SkillCreate] = []
+    skipped: list[str] = []
+
+    for entry in md_entries:
+        text = zf.read(entry).decode("utf-8", errors="replace")
+        parts = PurePosixPath(entry).parts
+        # derive category from directory; top-level → "imported"
+        category = parts[-2] if len(parts) >= 2 else "imported"
+        try:
+            skill = parse_md(text, category=category)
+            skills.append(skill)
+        except ValueError:
+            skipped.append(entry)
+
+    return skills, skipped
