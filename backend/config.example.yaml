@@ -25,6 +25,8 @@ active_model: deepseek-chat
 
 active_sandbox: local-dev
 
+skills_dir: ./skills          # 技能文件目录（内置+用户混合）
+
 sandboxes:
   - name: aios-local
     provider: aios

@@ -1,17 +1,31 @@
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+import yaml as _yaml
 from choreo.db import init_db
 from choreo.config import settings
 from choreo.agents import create_choreo_agent, set_agent
 from choreo.sandbox import get_sandbox_manager, set_sandbox_manager, SandboxManager
+from choreo.skills import set_skill_store, LocalSkillStore
+from choreo.skills.bundled import sync_builtin_skills
 from choreo.gateway.routers import threads, runs, tasks, history, models
+from choreo.gateway.routers import skills as skills_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 0. 初始化 SkillStore 并同步内置技能
+    _cfg_path = Path(__file__).parent.parent.parent / "config.yaml"
+    with open(_cfg_path, encoding="utf-8") as _f:
+        _cfg = _yaml.safe_load(_f) or {}
+    _skills_root = Path(__file__).parent.parent.parent / _cfg.get("skills_dir", "./skills")
+    _skill_store = LocalSkillStore(_skills_root)
+    await sync_builtin_skills(_skill_store)
+    set_skill_store(_skill_store)
+
     # 1. 建表（幂等）
     await init_db()
 
@@ -51,3 +65,4 @@ app.include_router(runs.router,    prefix="/threads",     tags=["runs"])
 app.include_router(tasks.router,   prefix="/api/tasks",   tags=["tasks"])
 app.include_router(history.router, prefix="/api/history", tags=["history"])
 app.include_router(models.router,  prefix="/models",      tags=["models"])
+app.include_router(skills_router.router, prefix="/api/skills", tags=["skills"])
