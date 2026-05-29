@@ -22,6 +22,9 @@ dependencies = [
     "greenlet>=3.5.1",
     "psycopg[binary,pool]>=3.3.4",
     "langgraph-checkpoint-postgres>=3.1.0",
+    "daytona>=0.182.0",
+    "agent-sandbox>=0.0.30",
+    "docker>=7.1.0",
 ]
 
 [project.optional-dependencies]
@@ -29,3 +32,8 @@ dev = ["pytest", "pytest-asyncio"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["choreo"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

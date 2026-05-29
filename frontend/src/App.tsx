@@ -12,6 +12,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/chat" replace />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat/:threadId" element={<ChatPage />} />
           <Route path="/tasks" element={<TaskListPage />} />
           <Route path="/history" element={<HistoryPage />} />
         </Routes>

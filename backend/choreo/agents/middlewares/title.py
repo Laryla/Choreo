@@ -6,6 +6,7 @@ from typing import Any
 from langchain.agents.middleware import AgentMiddleware, AgentState
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
+from langgraph.config import get_config
 from choreo.store.thread_store import thread_store
 
 _PROMPT = (
@@ -22,11 +23,8 @@ class TitleMiddleware(AgentMiddleware):
         self._max_chars = max_chars
 
     async def aafter_agent(self, state: AgentState, runtime: Any) -> dict[str, Any] | None:
-        # 从 runtime 取 thread_id
-        thread_id: str | None = None
-        if runtime:
-            config = getattr(runtime, "config", {}) or {}
-            thread_id = config.get("configurable", {}).get("thread_id")
+        config = get_config()
+        thread_id: str | None = (config.get("configurable") or {}).get("thread_id")
 
         if not thread_id or await thread_store.get_title(thread_id):
             return None  # 已有标题或无法确定线程，跳过

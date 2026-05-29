@@ -28,7 +28,7 @@ async def stream_run(thread_id: str, body: RunInput):
     if body.input is None:
         resume_decision = pop_decision(thread_id)
 
-    asyncio.create_task(_run_agent(run_id, thread_id, body.input, queue, resume_decision))
+    asyncio.create_task(_run_agent(run_id, thread_id, body.input, queue, resume_decision, body.context))
 
     return StreamingResponse(
         _read_queue(run_id, queue),
@@ -43,11 +43,17 @@ async def _run_agent(
     inputs: dict | None,
     queue: asyncio.Queue,
     resume_decision: dict | None,
+    context: dict | None = None,
 ):
+    from choreo.sandbox import get_sandbox_manager
     await queue.put({"event": "metadata", "data": {"run_id": run_id}})
     await thread_store.set_status(thread_id, "running")
 
-    config = {"configurable": {"thread_id": thread_id}}
+    # acquire sandbox（懒加载，sandbox 在工具调用时也会自动 acquire，这里提前初始化）
+    sandbox_name = (context or {}).get("sandbox_name")
+    await get_sandbox_manager().acquire(thread_id, sandbox_name)
+
+    config = {"configurable": {"thread_id": thread_id, **(context or {})}}
 
     if resume_decision is not None:
         run_input = Command(resume=resume_decision)
@@ -73,29 +79,13 @@ async def _run_agent(
                 if not isinstance(token, AIMessageChunk):
                     continue
 
-                # 1. DeepSeek reasoner: additional_kwargs["reasoning_content"]
-                reasoning = (getattr(token, "additional_kwargs", {}) or {}).get("reasoning_content", "")
-                if reasoning:
-                    await queue.put({"event": "thinking", "data": {"content": reasoning}})
-
-                content = getattr(token, "content", "")
-                if isinstance(content, str) and content:
-                    await queue.put({
-                        "event": "messages",
-                        "data": [{"content": content}],
-                    })
-                elif isinstance(content, list):
-                    # 2. content_blocks 格式（Claude thinking / LangChain v1 标准块）
-                    for block in content:
-                        btype = block.get("type", "")
-                        if btype in ("thinking", "reasoning"):
-                            t = block.get("thinking") or block.get("reasoning", "")
-                            if t:
-                                await queue.put({"event": "thinking", "data": {"content": t}})
-                        elif btype == "text":
-                            t = block.get("text", "")
-                            if t:
-                                await queue.put({"event": "messages", "data": [{"content": t}]})
+                await queue.put({
+                    "event": "messages",
+                    "data": [{
+                        "content": token.content,
+                        "additional_kwargs": token.additional_kwargs or {},
+                    }],
+                })
 
             elif chunk_type == "updates":
                 if "__interrupt__" in data:
@@ -116,6 +106,7 @@ async def _run_agent(
         state = await thread_store.get(thread_id)
         if state and state.status == "running":
             await thread_store.set_status(thread_id, "idle")
+        await get_sandbox_manager().release(thread_id)
         await queue.put(None)
 
 

@@ -23,11 +23,46 @@
 
 active_model: deepseek-chat
 
+active_sandbox: aios-remote
+
+sandboxes:
+  - name: aios-local
+    provider: aios
+    image: enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox
+    workspace_dir: /home/gem
+    timeout: 60
+    auto_start: true
+  - name: aios-remote
+    provider: aios
+    base_url: http://localhost:57797
+    workspace_dir: /home/gem
+    timeout: 60
+    auto_start: false
+  - name: local-dev
+    provider: local
+    workspace_dir: ./sandbox
+    timeout: 120
+    idle_timeout: 1800
+  - name: cloud-daytona
+    provider: daytona
+    api_key: dtn_54adc999d99d611922b3ff3cb95e7bd3a70b70b0afe421ae1bf017a10a71ae61
+    api_url: https://app.daytona.io/api
+
+
 models:
   # ── DeepSeek ─────────────────────────────────────────────────────
   - name: deepseek-chat
     use: choreo.models.patched_openai:PatchedChatOpenAI
     model: deepseek-chat
+    api_key: sk-386b6ab4ce7146588bf69e4e70d2de99
+    base_url: https://api.deepseek.com/v1
+    temperature: 1.0
+    max_tokens: 4096
+    max_retries: 2
+
+  - name: deepseek-chat
+    use: choreo.models.patched_openai:PatchedChatOpenAI
+    model: deepseek-v4-pro
     api_key: sk-386b6ab4ce7146588bf69e4e70d2de99
     base_url: https://api.deepseek.com/v1
     temperature: 1.0
