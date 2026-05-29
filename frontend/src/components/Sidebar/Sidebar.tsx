@@ -12,7 +12,6 @@ type NavItem = {
   to: string;
   label: string;
   icon: JSX.Element;
-  end?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -38,7 +37,6 @@ const NAV_ITEMS: NavItem[] = [
   {
     to: "/customize",
     label: "自定义",
-    end: false,
     icon: (
       <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
         <circle cx="8" cy="8" r="2.5" />
@@ -119,7 +117,6 @@ export default function Sidebar() {
           <NavLink
             key={item.label}
             to={item.to}
-            end={item.end}
             title={item.label}
             className={({ isActive }) =>
               `flex items-center transition-colors rounded-lg cursor-pointer ${

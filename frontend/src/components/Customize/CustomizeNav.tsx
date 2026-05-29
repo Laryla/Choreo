@@ -33,7 +33,7 @@ const ITEMS = [
 
 export default function CustomizeNav() {
   return (
-    <nav className="w-[200px] flex-shrink-0 h-full bg-[#f0ede6] dark:bg-[#0f0f0f] border-r border-[#ddd9d0] dark:border-[#1a1a1a] flex flex-col pt-5 px-3">
+    <nav aria-label="自定义" className="w-[200px] flex-shrink-0 h-full bg-[#f0ede6] dark:bg-[#0f0f0f] border-r border-[#ddd9d0] dark:border-[#1a1a1a] flex flex-col pt-5 px-3">
       <div className="text-[10px] text-[#bbb] dark:text-[#3a3a3a] uppercase tracking-[0.08em] font-mono mb-3 px-2">
         自定义
       </div>
