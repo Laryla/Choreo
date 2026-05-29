@@ -1,19 +1,48 @@
 # Choreo 模型配置
 # active_model: 指定默认使用哪个 name 的模型
 # 也可通过环境变量 CHOREO_MODEL_NAME=xxx 运行时切换
+#
+# ── 思考内容（Thinking）说明 ──────────────────────────────────────────
+# 不同提供商开启方式不同：
+#
+#  DeepSeek：模型级别区分，无需额外参数
+#    deepseek-chat     → 无思考（通用对话）
+#    deepseek-reasoner → 始终思考，reasoning_content 字段自动返回
+#
+#  Anthropic Claude：通过 thinking 字段开启，需设置 token budget
+#    thinking:
+#      type: enabled
+#      budget_tokens: 8000    # 思考最多消耗的 token 数
+#
+#  OpenAI o 系列：通过 reasoning_effort 控制推理力度
+#    reasoning_effort: medium  # low / medium / high
+#
+#  Google Gemini：通过 thinking_level 控制
+#    thinking_level: medium    # minimal / low / medium / high
+# ───────────────────────────────────────────────────────────────────
 
 active_model: deepseek-chat
 
 models:
+  # ── DeepSeek ─────────────────────────────────────────────────────
   - name: deepseek-chat
     use: langchain_openai:ChatOpenAI
     model: deepseek-chat
-    api_key: sk-386b6ab4ce7146588bf69e4e70d2de99         # $ 开头表示从环境变量读取
+    api_key: sk-386b6ab4ce7146588bf69e4e70d2de99
     base_url: https://api.deepseek.com/v1
     temperature: 1.0
     max_tokens: 4096
     max_retries: 2
-    
+
+  - name: deepseek-reasoner            # R1 推理模型，自动输出思考内容
+    use: langchain_openai:ChatOpenAI
+    model: deepseek-reasoner
+    api_key: sk-386b6ab4ce7146588bf69e4e70d2de99
+    base_url: https://api.deepseek.com/v1
+    max_tokens: 8096
+    max_retries: 2
+
+  # ── OpenAI Proxy ──────────────────────────────────────────────────
   - name: gpt-4o-mini-proxy
     use: langchain_openai:ChatOpenAI
     model: gpt-4o-mini
@@ -22,3 +51,27 @@ models:
     temperature: 0.7
     max_tokens: 4096
     max_retries: 2
+
+  # ── Anthropic Claude（需安装 langchain-anthropic）─────────────────
+  # - name: claude-sonnet
+  #   use: langchain_anthropic:ChatAnthropic
+  #   model: claude-sonnet-4-6
+  #   api_key: $ANTHROPIC_API_KEY
+  #   max_tokens: 16000
+  #   thinking:                          # 开启 Extended Thinking
+  #     type: enabled
+  #     budget_tokens: 8000
+
+  # ── OpenAI o 系列（需安装 langchain-openai）──────────────────────
+  # - name: o3-mini
+  #   use: langchain_openai:ChatOpenAI
+  #   model: o3-mini
+  #   api_key: $OPENAI_API_KEY
+  #   reasoning_effort: medium           # low / medium / high
+
+  # ── Ollama 本地（无需 key）────────────────────────────────────────
+  # - name: ollama-qwen
+  #   use: langchain_openai:ChatOpenAI
+  #   model: qwen2.5:14b
+  #   api_key: ollama
+  #   base_url: http://localhost:11434/v1
