@@ -23,7 +23,7 @@
 
 active_model: deepseek-chat
 
-active_sandbox: aios-remote
+active_sandbox: local-dev
 
 sandboxes:
   - name: aios-local
@@ -34,7 +34,7 @@ sandboxes:
     auto_start: true
   - name: aios-remote
     provider: aios
-    base_url: http://localhost:57797
+    base_url: http://localhost:8080   # 连接已有 AIO Sandbox 实例
     workspace_dir: /home/gem
     timeout: 60
     auto_start: false
@@ -45,7 +45,7 @@ sandboxes:
     idle_timeout: 1800
   - name: cloud-daytona
     provider: daytona
-    api_key: dtn_54adc999d99d611922b3ff3cb95e7bd3a70b70b0afe421ae1bf017a10a71ae61
+    api_key: $DAYTONA_API_KEY
     api_url: https://app.daytona.io/api
 
 
@@ -54,16 +54,7 @@ models:
   - name: deepseek-chat
     use: choreo.models.patched_openai:PatchedChatOpenAI
     model: deepseek-chat
-    api_key: sk-386b6ab4ce7146588bf69e4e70d2de99
-    base_url: https://api.deepseek.com/v1
-    temperature: 1.0
-    max_tokens: 4096
-    max_retries: 2
-
-  - name: deepseek-chat
-    use: choreo.models.patched_openai:PatchedChatOpenAI
-    model: deepseek-v4-pro
-    api_key: sk-386b6ab4ce7146588bf69e4e70d2de99
+    api_key: $DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com/v1
     temperature: 1.0
     max_tokens: 4096
@@ -72,17 +63,17 @@ models:
   - name: deepseek-reasoner            # R1 推理模型：始终输出思考内容，多轮需回传 reasoning_content
     use: choreo.models.patched_openai:PatchedChatOpenAI
     model: deepseek-reasoner
-    api_key: sk-386b6ab4ce7146588bf69e4e70d2de99
+    api_key: $DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com/v1
     max_tokens: 8096
     max_retries: 2
 
-  # ── OpenAI Proxy ──────────────────────────────────────────────────
-  - name: gpt-4o-mini-proxy
+  # ── OpenAI ────────────────────────────────────────────────────────
+  - name: gpt-4o-mini
     use: choreo.models.patched_openai:PatchedChatOpenAI
     model: gpt-4o-mini
-    api_key: sk-H2WnT74ShuiayQegw5gnTwOX0wYydb0DV4w3eRhc3IaTLPL5
-    base_url: https://api.openai-proxy.org/v1
+    api_key: $OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
     temperature: 0.7
     max_tokens: 4096
     max_retries: 2

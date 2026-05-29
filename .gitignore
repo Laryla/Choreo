@@ -1,0 +1,30 @@
+# 敏感配置（使用 *.example 文件作为模板）
+backend/.env
+backend/config.yaml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# 沙箱工作目录
+backend/sandbox/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
