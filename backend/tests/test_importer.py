@@ -1,8 +1,9 @@
 import io
+import time
 import zipfile
 
 import pytest
-from choreo.skills.importer import parse_md, parse_zip
+from choreo.skills.importer import parse_md, parse_zip, create_session, get_session, SESSION_TTL_SECONDS
 from choreo.models.skill import SkillCreate
 
 
@@ -137,3 +138,25 @@ def test_parse_zip_empty_raises():
     data = _make_zip({"readme.txt": "hello"})
     with pytest.raises(ValueError, match="no .md files"):
         parse_zip(data)
+
+
+def test_create_and_get_session():
+    skills = [SkillCreate(category="cat", name="s1", description="Use when x")]
+    sid = create_session(skills)
+    assert isinstance(sid, str) and len(sid) == 36  # UUID
+    result = get_session(sid)
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].name == "s1"
+
+
+def test_get_session_unknown_returns_none():
+    result = get_session("nonexistent-id")
+    assert result is None
+
+
+def test_session_expires():
+    skills = [SkillCreate(category="cat", name="s2", description="Use when y")]
+    sid = create_session(skills, ttl=0)  # expires immediately
+    time.sleep(0.01)
+    assert get_session(sid) is None

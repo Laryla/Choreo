@@ -1,4 +1,6 @@
 import io
+import time
+import uuid
 import zipfile
 from pathlib import PurePosixPath
 
@@ -73,3 +75,25 @@ def parse_zip(data: bytes) -> tuple[list[SkillCreate], list[str]]:
                 skipped.append(entry)
 
     return skills, skipped
+
+
+SESSION_TTL_SECONDS = 600  # 10 minutes
+
+_sessions: dict[str, tuple[list[SkillCreate], float]] = {}
+
+
+def create_session(skills: list[SkillCreate], ttl: int = SESSION_TTL_SECONDS) -> str:
+    sid = str(uuid.uuid4())
+    _sessions[sid] = (skills, time.time() + ttl)
+    return sid
+
+
+def get_session(session_id: str) -> list[SkillCreate] | None:
+    entry = _sessions.get(session_id)
+    if entry is None:
+        return None
+    skills, expires_at = entry
+    if time.time() > expires_at:
+        del _sessions[session_id]
+        return None
+    return skills
