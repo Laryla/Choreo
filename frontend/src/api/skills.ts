@@ -69,3 +69,52 @@ export const patchSkill = (
 
 export const deleteSkill = (category: string, name: string): Promise<void> =>
   fetch(`${BASE}/${category}/${name}`, { method: "DELETE" }).then(() => undefined);
+
+export interface PreviewSkill {
+  category: string;
+  name: string;
+  description: string;
+  conflict: boolean;
+}
+
+export interface ImportPreviewResponse {
+  session_id: string;
+  skills: PreviewSkill[];
+}
+
+export interface ImportConfirmBody {
+  session_id: string;
+  selections: string[];
+  conflict_decisions: Record<string, "overwrite" | "skip">;
+}
+
+export interface ImportConfirmResponse {
+  imported: string[];
+}
+
+export const previewImport = (
+  file: File,
+  category?: string
+): Promise<ImportPreviewResponse> => {
+  const form = new FormData();
+  form.append("file", file);
+  if (category) form.append("category", category);
+  return fetch(`${BASE}/import/preview`, { method: "POST", body: form }).then(
+    (r) => {
+      if (!r.ok) return r.json().then((e) => Promise.reject(new Error(e.detail ?? `${r.status}`)));
+      return r.json();
+    }
+  );
+};
+
+export const confirmImport = (
+  body: ImportConfirmBody
+): Promise<ImportConfirmResponse> =>
+  fetch(`${BASE}/import/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => {
+    if (!r.ok) return r.json().then((e) => Promise.reject(new Error(e.detail ?? `${r.status}`)));
+    return r.json();
+  });
