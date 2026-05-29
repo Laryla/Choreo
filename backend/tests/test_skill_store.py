@@ -3,6 +3,7 @@ import pytest
 from pathlib import Path
 from choreo.skills.store import LocalSkillStore
 from choreo.models.skill import SkillCreate, SkillPatch
+from choreo.skills.bundled import sync_builtin_skills
 
 
 @pytest.fixture
@@ -125,3 +126,32 @@ async def test_list_files_excludes_skill_md(store):
     files = await store.list_files("git/log")
     assert "template.md" in files
     assert "SKILL.md" not in files
+
+
+@pytest.mark.asyncio
+async def test_sync_copies_builtin_skills(store):
+    """Built-in skills are copied to skills/ on first sync."""
+    builtin_dir = Path(__file__).parent.parent / "choreo" / "builtin_skills"
+    if not builtin_dir.exists():
+        pytest.skip("builtin_skills directory not found")
+
+    await sync_builtin_skills(store)
+
+    skill = await store.get("git/weekly-report")
+    assert skill is not None
+    assert skill.source == "builtin"
+    assert (store._root / ".bundled_manifest").exists()
+
+
+@pytest.mark.asyncio
+async def test_sync_respects_user_modifications(store):
+    """Re-syncing must not overwrite a skill marked user_modified=True."""
+    builtin_dir = Path(__file__).parent.parent / "choreo" / "builtin_skills"
+    if not builtin_dir.exists():
+        pytest.skip("builtin_skills directory not found")
+
+    await sync_builtin_skills(store)
+    await store.update("git/weekly-report", SkillPatch(content="# My custom content"))
+    await sync_builtin_skills(store)
+    skill = await store.get("git/weekly-report")
+    assert skill.content == "# My custom content"
