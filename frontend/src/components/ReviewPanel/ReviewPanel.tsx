@@ -1,6 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useReview } from "@/hooks/useReview";
 import type { Decision } from "@/types/review";
+
+// 工具图标映射
+const TOOL_ICONS: Record<string, string> = {
+  bash: "⬢",
+  read_file: "◈",
+  write_file: "◈",
+  edit_file: "◈",
+  list_dir: "◈",
+  grep: "◉",
+  send_notification: "◎",
+};
+
+// 需要用代码块渲染的参数
+const CODE_KEYS = new Set(["command", "content", "pattern", "old_string", "new_string"]);
 
 export default function ReviewPanel() {
   const { current, submitDecision } = useReview();
@@ -11,6 +25,8 @@ export default function ReviewPanel() {
   const action = current.action_requests[0];
   const config = current.review_configs[0];
   const allowed = config?.allowed_decisions ?? ["approve", "reject"];
+  const args = action?.args ?? {};
+  const icon = TOOL_ICONS[action?.name] ?? "◆";
 
   const handle = async (type: Decision["type"]) => {
     setLoading(true);
@@ -18,37 +34,88 @@ export default function ReviewPanel() {
     setLoading(false);
   };
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (loading) return;
+      if (e.key === "y" && allowed.includes("approve")) handle("approve");
+      if (e.key === "n" && allowed.includes("reject")) handle("reject");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [loading, allowed]);
+
   return (
-    <div className="max-w-[740px] mx-auto px-6 mb-3">
-      <div className="rounded-xl p-3 bg-[#fefce8] dark:bg-[#1a1700] border border-[#fef08a] dark:border-[#2e2a00]">
-        <div className="text-[11.5px] font-semibold text-[#713f12] dark:text-[#d4a017] mb-1.5 flex items-center gap-1.5">
-          ⚠️ 需要确认：{action?.name}
-        </div>
-        {action?.description && (
-          <p className="text-[10.5px] text-[#92400e] dark:text-[#a37a00] mb-1.5">{action.description}</p>
-        )}
-        <div className="font-mono text-[10.5px] bg-[#fef9c3] dark:bg-[#231e00] text-[#854d0e] dark:text-[#d4a017] px-2 py-1 rounded mb-2 inline-block">
-          {JSON.stringify(action?.arguments)}
-        </div>
-        <div className="flex gap-2">
-          {allowed.includes("approve") && (
-            <button
-              onClick={() => handle("approve")}
-              disabled={loading}
-              className="bg-green-600 text-white text-[11px] px-3 py-1 rounded-lg disabled:opacity-40 hover:bg-green-700"
-            >
-              ✓ 确认执行
-            </button>
+    <div className="px-6 pb-3">
+      <div className="max-w-[740px] mx-auto">
+        <div className="rounded-lg overflow-hidden border border-[#2a2a2a] bg-[#0d0d0d] shadow-xl font-mono text-[12px]">
+
+          {/* 顶栏 */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#161616] border-b border-[#2a2a2a]">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+            <span className="ml-2 text-[11px] text-[#555]">choreo — tool confirmation</span>
+          </div>
+
+          {/* 工具名行 */}
+          <div className="flex items-center gap-2.5 px-4 pt-3 pb-2 border-b border-[#1a1a1a]">
+            <span className="text-[#e2b714] text-[14px]">{icon}</span>
+            <span className="text-[#e2b714] text-[13px] font-semibold">{action?.name}</span>
+            {action?.description && (
+              <span className="text-[#444] text-[11px] ml-1">{action.description}</span>
+            )}
+          </div>
+
+          {/* 参数列表 */}
+          {Object.keys(args).length > 0 && (
+            <div className="px-4 py-3 space-y-2.5 border-b border-[#1a1a1a]">
+              {Object.entries(args).map(([key, val]) => {
+                const strVal = typeof val === "string" ? val : JSON.stringify(val, null, 2);
+                const isCode = CODE_KEYS.has(key);
+                const isLong = strVal.length > 60 || strVal.includes("\n");
+
+                return (
+                  <div key={key}>
+                    <div className="text-[#569cd6] text-[11px] mb-1">{key}</div>
+                    {isCode ? (
+                      <div className={`bg-[#111] border border-[#222] rounded px-3 py-2 text-[#ce9178] leading-5 ${isLong ? "whitespace-pre-wrap break-all" : "whitespace-nowrap overflow-x-auto"}`}>
+                        {strVal}
+                      </div>
+                    ) : (
+                      <div className="text-[#9cdcfe] pl-1">{strVal}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
-          {allowed.includes("reject") && (
-            <button
-              onClick={() => handle("reject")}
-              disabled={loading}
-              className="text-[11px] px-3 py-1 rounded-lg border border-[#fca5a5] dark:border-[#4a1515] text-red-600 dark:text-[#f87171] disabled:opacity-40"
-            >
-              ✕ 拒绝
-            </button>
-          )}
+
+          {/* 确认行 */}
+          <div className="flex items-center gap-3 px-4 py-2.5">
+            <span className="text-[#555]">❯</span>
+            <span className="text-[#666]">Allow this action?</span>
+            <div className="flex gap-2 ml-auto">
+              {allowed.includes("reject") && (
+                <button
+                  onClick={() => handle("reject")}
+                  disabled={loading}
+                  className="px-3 py-1 rounded text-[11px] bg-[#1a1a1a] border border-[#333] text-[#888] hover:border-[#555] hover:text-[#aaa] disabled:opacity-40 transition-colors"
+                >
+                  No <kbd className="ml-1 text-[10px] text-[#555]">n</kbd>
+                </button>
+              )}
+              {allowed.includes("approve") && (
+                <button
+                  onClick={() => handle("approve")}
+                  disabled={loading}
+                  className="px-3 py-1 rounded text-[11px] bg-[#1a3a1a] border border-[#2d5a2d] text-[#4ec94e] hover:bg-[#1f4a1f] hover:border-[#3d7a3d] disabled:opacity-40 transition-colors"
+                >
+                  Yes <kbd className="ml-1 text-[10px] text-[#2d7a2d]">y</kbd>
+                </button>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

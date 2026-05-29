@@ -46,6 +46,11 @@ class PatchedChatOpenAI(ChatOpenAI):
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
         payload_messages = payload.get("messages", [])
 
+        # 修复孤儿 tool_calls：扫描 payload，若某条 assistant 消息有 tool_calls
+        # 但后续缺少对应 ToolMessage，则移除这些孤儿 tool_calls（避免 OpenAI 400）
+        payload_messages = _sanitize_orphan_tool_calls(payload_messages)
+        payload["messages"] = payload_messages
+
         if len(payload_messages) == len(original_messages):
             for payload_msg, orig_msg in zip(payload_messages, original_messages):
                 if payload_msg.get("role") == "assistant" and isinstance(orig_msg, AIMessage):
@@ -147,3 +152,37 @@ def _append_reasoning(message: AIMessage | AIMessageChunk, reasoning: str) -> AI
     else:
         kwargs["reasoning_content"] = reasoning
     return message.model_copy(update={"additional_kwargs": kwargs})
+
+
+def _sanitize_orphan_tool_calls(messages: list[dict]) -> list[dict]:
+    """移除没有对应 ToolMessage 的孤儿 tool_calls，防止 OpenAI 400 错误。
+
+    当 HITL 中断后 stream 断开、页面 reload 或其他异常导致
+    assistant 消息有 tool_calls 但后续缺少对应 tool 消息时触发。
+    """
+    # 收集所有 tool 角色消息已响应的 tool_call_id
+    responded_ids: set[str] = set()
+    for msg in messages:
+        if msg.get("role") == "tool":
+            call_id = msg.get("tool_call_id")
+            if call_id:
+                responded_ids.add(call_id)
+
+    result = []
+    for msg in messages:
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            # 只保留有对应 ToolMessage 的 tool_calls
+            valid_calls = [
+                tc for tc in msg["tool_calls"]
+                if tc.get("id") in responded_ids
+            ]
+            if len(valid_calls) != len(msg["tool_calls"]):
+                # 有孤儿 tool_calls，修复这条消息
+                msg = dict(msg)
+                if valid_calls:
+                    msg["tool_calls"] = valid_calls
+                else:
+                    # 全部是孤儿：移除 tool_calls 字段
+                    msg.pop("tool_calls", None)
+        result.append(msg)
+    return result

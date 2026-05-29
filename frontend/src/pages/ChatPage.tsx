@@ -5,6 +5,7 @@ import { ChatProvider, useChatStore } from "@/store/chatStore";
 import { ReviewProvider } from "@/store/reviewStore";
 import ChatMessage from "@/components/Chat/ChatMessage";
 import ChatInput from "@/components/Chat/ChatInput";
+import RunnerLoader from "@/components/Chat/RunnerLoader";
 import ReviewPanel from "@/components/ReviewPanel/ReviewPanel";
 import Topbar from "@/components/Topbar/Topbar";
 import { useChat, THREADS_KEY } from "@/hooks/useChat";
@@ -65,6 +66,17 @@ function ChatInner({ threadId }: { threadId?: string }) {
           {messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))}
+          {/* 纯等待状态：奔跑小人 */}
+          {streaming && !streamingContent && !streamingThinking && (
+            <div className="flex gap-2.5 items-center">
+              <div className="w-[25px] h-[25px] rounded-full bg-[#1e293b] dark:bg-[#2a2a2a] flex items-center justify-center text-white text-xs flex-shrink-0">
+                🎼
+              </div>
+              <RunnerLoader />
+            </div>
+          )}
+
+          {/* 流式输出中：思考块 + 文字 */}
           {(streamingThinking || streamingContent) && (
             <div className="flex gap-2.5 items-start">
               <div className="w-[25px] h-[25px] rounded-full bg-[#1e293b] dark:bg-[#2a2a2a] flex items-center justify-center text-white text-xs flex-shrink-0 mt-0.5">

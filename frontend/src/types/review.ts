@@ -1,8 +1,8 @@
 // HumanInTheLoopMiddleware 触发 interrupt 时的 payload 格式
 export interface ActionRequest {
   name: string;
-  arguments: Record<string, unknown>;
-  description: string;
+  args: Record<string, unknown>;
+  description?: string;
 }
 
 export interface ReviewConfig {

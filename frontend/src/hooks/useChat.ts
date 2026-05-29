@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mutate } from "swr";
 import { client } from "@/lib/client";
 import { useChatStore } from "@/store/chatStore";
@@ -10,6 +10,12 @@ export function useChat(initialThreadId?: string) {
   const threadIdRef = useRef<string | null>(initialThreadId ?? null);
   const [streaming, setStreaming] = useState(false);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(initialThreadId ?? null);
+
+  // 路由切换时同步重置 ref，避免新建聊天时还用旧 thread ID
+  useEffect(() => {
+    threadIdRef.current = initialThreadId ?? null;
+    setCurrentThreadId(initialThreadId ?? null);
+  }, [initialThreadId]);
   const { addMessage, appendToken, appendThinking, finalizeToken } = useChatStore();
   const { openReview } = useReviewStore();
 
