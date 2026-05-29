@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar/Sidebar";
 import ChatPage from "./pages/ChatPage";
 import TaskListPage from "./pages/TaskListPage";
 import HistoryPage from "./pages/HistoryPage";
+import SkillsPage from "./pages/SkillsPage";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/chat/:threadId" element={<ChatPage />} />
           <Route path="/tasks" element={<TaskListPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/skills" element={<SkillsPage />} />
         </Routes>
       </div>
     </div>
