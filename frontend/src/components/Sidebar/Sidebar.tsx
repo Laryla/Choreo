@@ -117,7 +117,7 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center transition-colors rounded-lg cursor-pointer ${
                 collapsed
-                  ? `w-8 h-8 justify-center ${isActive ? "bg-[#d6d0c7] dark:bg-[#1e1e1e] text-[#0f0f0f] dark:text-[#e8e8e8]" : "text-[#3a3a3a] dark:text-[#999] hover:bg-[#ddd9d0] dark:hover:bg-[#1e1e1e]"}`
+                  ? `w-8 h-8 justify-center ${isActive ? "bg-[#d6d0c7] dark:bg-[#1e1e1e] text-[#0f0f0f] dark:text-[#e8e8e8]" : "text-[#3a3a3a] dark:text-[#999] hover:bg-[#ddd9d0] dark:hover:bg-[#1e1e1e] dark:hover:text-[#e8e8e8]"}`
                   : `gap-2.5 px-2.5 py-1.5 text-[13px] ${isActive ? "bg-[#d6d0c7] dark:bg-[#1e1e1e] text-[#0f0f0f] dark:text-[#e8e8e8] font-medium" : "text-[#3a3a3a] dark:text-[#999] hover:bg-[#ddd9d0] dark:hover:bg-[#1e1e1e] dark:hover:text-[#e8e8e8]"}`
               }`
             }
