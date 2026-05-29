@@ -26,7 +26,7 @@ active_model: deepseek-chat
 models:
   # ── DeepSeek ─────────────────────────────────────────────────────
   - name: deepseek-chat
-    use: langchain_openai:ChatOpenAI
+    use: choreo.models.patched_openai:PatchedChatOpenAI
     model: deepseek-chat
     api_key: sk-386b6ab4ce7146588bf69e4e70d2de99
     base_url: https://api.deepseek.com/v1
@@ -34,8 +34,8 @@ models:
     max_tokens: 4096
     max_retries: 2
 
-  - name: deepseek-reasoner            # R1 推理模型，自动输出思考内容
-    use: langchain_openai:ChatOpenAI
+  - name: deepseek-reasoner            # R1 推理模型：始终输出思考内容，多轮需回传 reasoning_content
+    use: choreo.models.patched_openai:PatchedChatOpenAI
     model: deepseek-reasoner
     api_key: sk-386b6ab4ce7146588bf69e4e70d2de99
     base_url: https://api.deepseek.com/v1
@@ -44,7 +44,7 @@ models:
 
   # ── OpenAI Proxy ──────────────────────────────────────────────────
   - name: gpt-4o-mini-proxy
-    use: langchain_openai:ChatOpenAI
+    use: choreo.models.patched_openai:PatchedChatOpenAI
     model: gpt-4o-mini
     api_key: sk-H2WnT74ShuiayQegw5gnTwOX0wYydb0DV4w3eRhc3IaTLPL5
     base_url: https://api.openai-proxy.org/v1
