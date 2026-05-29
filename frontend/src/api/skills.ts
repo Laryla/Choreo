@@ -1,0 +1,71 @@
+const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000";
+const BASE = `${API}/api/skills`;
+
+export interface Skill {
+  id: string;
+  category: string;
+  name: string;
+  description: string;
+  version: string;
+  author: string;
+  tags: string[];
+  content: string;
+  source: "manual" | "auto" | "builtin";
+  state: "active" | "stale" | "archived";
+  pinned: boolean;
+  use_count: number;
+  view_count: number;
+  patch_count: number;
+  last_activity_at: number | null;
+}
+
+export interface SkillCreate {
+  category: string;
+  name: string;
+  description: string;
+  version?: string;
+  author?: string;
+  tags?: string[];
+  content?: string;
+}
+
+export interface SkillPatch {
+  description?: string;
+  version?: string;
+  tags?: string[];
+  content?: string;
+  pinned?: boolean;
+  state?: "active" | "archived";
+}
+
+export const getSkills = (q?: string, state?: string): Promise<Skill[]> => {
+  const p = new URLSearchParams();
+  if (q) p.set("q", q);
+  if (state) p.set("state", state);
+  const qs = p.toString();
+  return fetch(`${BASE}/${qs ? "?" + qs : ""}`).then((r) => r.json());
+};
+
+export const createSkill = (body: SkillCreate): Promise<Skill> =>
+  fetch(`${BASE}/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => {
+    if (!r.ok) throw new Error(`${r.status}`);
+    return r.json();
+  });
+
+export const patchSkill = (
+  category: string,
+  name: string,
+  body: SkillPatch
+): Promise<Skill> =>
+  fetch(`${BASE}/${category}/${name}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => r.json());
+
+export const deleteSkill = (category: string, name: string): Promise<void> =>
+  fetch(`${BASE}/${category}/${name}`, { method: "DELETE" }).then(() => undefined);
