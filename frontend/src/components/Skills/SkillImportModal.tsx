@@ -41,7 +41,7 @@ export default function SkillImportModal({ file, onClose, onDone }: Props) {
         setStep("select");
       } else {
         const conflict = res.skills.some((s) => s.conflict);
-        conflict ? setStep("conflict") : await runConfirm(res.session_id, res.skills, {});
+        conflict ? setStep("conflict") : await runConfirm(res.session_id, res.skills, {}, allIds);
       }
     } catch (e: any) {
       setError(e.message);
@@ -53,12 +53,13 @@ export default function SkillImportModal({ file, onClose, onDone }: Props) {
   const runConfirm = async (
     sid: string,
     allSkills: PreviewSkill[],
-    dec: Record<string, "overwrite" | "skip">
+    dec: Record<string, "overwrite" | "skip">,
+    checkedIds: Set<string>
   ) => {
     setLoading(true);
     setError("");
     try {
-      const selections = [...checked].filter((id) =>
+      const selections = [...checkedIds].filter((id) =>
         allSkills.some((s) => skillId(s) === id)
       );
       const res = await confirmImport({ session_id: sid, selections, conflict_decisions: dec });
@@ -126,7 +127,7 @@ export default function SkillImportModal({ file, onClose, onDone }: Props) {
 
           {/* Step: select (zip) */}
           {step === "select" && skills.length === 0 && (
-            <p className="text-[12px] text-[#888]">正在解析文件…</p>
+            <p className="text-[12px] text-[#888]">点击「解析文件」开始解析 zip 包中的技能</p>
           )}
           {step === "select" && skills.length > 0 && (
             <div>
@@ -224,7 +225,7 @@ export default function SkillImportModal({ file, onClose, onDone }: Props) {
                     disabled={loading || checked.size === 0}
                     onClick={() => {
                       const hasConflict = skills.some((s) => s.conflict && checked.has(skillId(s)));
-                      hasConflict ? setStep("conflict") : runConfirm(sessionId, skills, {});
+                      hasConflict ? setStep("conflict") : runConfirm(sessionId, skills, {}, checked);
                     }}
                     className="px-4 py-1.5 rounded-lg bg-[#1e293b] text-white text-[12px] disabled:opacity-50"
                   >{loading ? "导入中…" : "下一步"}</button>
@@ -235,7 +236,7 @@ export default function SkillImportModal({ file, onClose, onDone }: Props) {
             {step === "conflict" && (
               <button
                 disabled={loading}
-                onClick={() => runConfirm(sessionId, skills, decisions)}
+                onClick={() => runConfirm(sessionId, skills, decisions, checked)}
                 className="px-4 py-1.5 rounded-lg bg-[#1e293b] text-white text-[12px] disabled:opacity-50"
               >{loading ? "导入中…" : "确认导入"}</button>
             )}
