@@ -66,12 +66,30 @@ async def _run_agent(
 
             if chunk_type == "messages":
                 token, _ = data
+
+                # 1. DeepSeek reasoner: additional_kwargs["reasoning_content"]
+                reasoning = (getattr(token, "additional_kwargs", {}) or {}).get("reasoning_content", "")
+                if reasoning:
+                    await queue.put({"event": "thinking", "data": {"content": reasoning}})
+
                 content = getattr(token, "content", "")
                 if isinstance(content, str) and content:
                     await queue.put({
                         "event": "messages",
                         "data": [{"content": content}],
                     })
+                elif isinstance(content, list):
+                    # 2. content_blocks 格式（Claude thinking / LangChain v1 标准块）
+                    for block in content:
+                        btype = block.get("type", "")
+                        if btype in ("thinking", "reasoning"):
+                            t = block.get("thinking") or block.get("reasoning", "")
+                            if t:
+                                await queue.put({"event": "thinking", "data": {"content": t}})
+                        elif btype == "text":
+                            t = block.get("text", "")
+                            if t:
+                                await queue.put({"event": "messages", "data": [{"content": t}]})
 
             elif chunk_type == "updates":
                 if "__interrupt__" in data:

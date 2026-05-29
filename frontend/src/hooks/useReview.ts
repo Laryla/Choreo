@@ -5,7 +5,7 @@ import type { ReviewDecision } from "@/types/review";
 
 export function useReview() {
   const { current, closeReview } = useReviewStore();
-  const { appendToken, finalizeToken } = useChatStore();
+  const { appendToken, appendThinking, finalizeToken } = useChatStore();
 
   async function submitDecision(decision: ReviewDecision) {
     if (!current) return;
@@ -24,6 +24,9 @@ export function useReview() {
     });
 
     for await (const chunk of stream as any) {
+      if (chunk.event === "thinking") {
+        if (chunk.data?.content) appendThinking(chunk.data.content);
+      }
       if (chunk.event === "messages") {
         const msgs = Array.isArray(chunk.data) ? chunk.data : [chunk.data];
         for (const msg of msgs) {

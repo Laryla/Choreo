@@ -6,7 +6,7 @@ import { useReviewStore } from "@/store/reviewStore";
 export function useChat() {
   const threadIdRef = useRef<string | null>(null);
   const [streaming, setStreaming] = useState(false);
-  const { addMessage, appendToken, finalizeToken } = useChatStore();
+  const { addMessage, appendToken, appendThinking, finalizeToken } = useChatStore();
   const { openReview } = useReviewStore();
 
   async function ensureThread(): Promise<string> {
@@ -28,6 +28,9 @@ export function useChat() {
       });
 
       for await (const chunk of stream as any) {
+        if (chunk.event === "thinking") {
+          if (chunk.data?.content) appendThinking(chunk.data.content);
+        }
         if (chunk.event === "messages") {
           const msgs = Array.isArray(chunk.data) ? chunk.data : [chunk.data];
           for (const msg of msgs) {
