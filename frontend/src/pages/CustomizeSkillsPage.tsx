@@ -27,15 +27,15 @@ export default function CustomizeSkillsPage() {
   const categories = [...new Set(skills.map((s) => s.category))].sort();
 
   return (
-    <div className="flex flex-col h-full bg-[#f5f2eb] dark:bg-[#0d0d0d]">
+    <div className="flex flex-col h-full bg-[#f5f2eb] dark:bg-[#141414]">
       {/* Content header */}
-      <div className="px-7 pt-6 pb-4 border-b border-[#ddd9d0] dark:border-[#141414]">
+      <div className="px-7 pt-6 pb-4 border-b border-[#ddd9d0] dark:border-[#202020]">
         <h1 className="text-[17px] font-semibold text-[#0f0f0f] dark:text-[#e8e8e8] mb-1">技能库</h1>
         <p className="text-[12px] text-[#999] dark:text-[#555]">管理 AI 助手的专项技能，技能会在对话中被自动调用</p>
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-2.5 px-7 py-3 border-b border-[#ddd9d0] dark:border-[#141414] bg-[#f0ede6] dark:bg-[#0d0d0d]">
+      <div className="flex items-center gap-2.5 px-7 py-3 border-b border-[#ddd9d0] dark:border-[#202020] bg-[#f0ede6] dark:bg-[#141414]">
         <div className="flex gap-1">
           {(["active", "archived"] as Tab[]).map((t) => (
             <button
@@ -67,7 +67,7 @@ export default function CustomizeSkillsPage() {
 
       {/* Skills list */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-[860px] mx-auto px-7 py-5">
+        <div className="max-w-[900px] mx-auto px-7 py-5">
           {skills.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-[#bbb] dark:text-[#333] text-sm gap-2">
               <span className="text-4xl">⚡</span>

@@ -1,9 +1,9 @@
 // frontend/src/pages/CustomizeMcpPage.tsx
 export default function CustomizeMcpPage() {
   return (
-    <div className="flex flex-col h-full bg-[#f5f2eb] dark:bg-[#0d0d0d]">
+    <div className="flex flex-col h-full bg-[#f5f2eb] dark:bg-[#141414]">
       {/* Content header */}
-      <div className="px-7 pt-6 pb-4 border-b border-[#ddd9d0] dark:border-[#141414]">
+      <div className="px-7 pt-6 pb-4 border-b border-[#ddd9d0] dark:border-[#202020]">
         <h1 className="text-[17px] font-semibold text-[#0f0f0f] dark:text-[#e8e8e8] mb-1">MCP 连接器</h1>
         <p className="text-[12px] text-[#999] dark:text-[#555]">允许 AI 助手连接外部工具和数据源</p>
       </div>
