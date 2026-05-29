@@ -1,8 +1,8 @@
 // frontend/src/pages/CustomizeSkillsPage.tsx
-import { useState } from "react";
+import { useState, useRef } from "react";
 import useSWR from "swr";
 import SkillCard from "@/components/Skills/SkillCard";
-import SkillEditor from "@/components/Skills/SkillEditor";
+import SkillImportModal from "@/components/Skills/SkillImportModal";
 import type { Skill } from "@/api/skills";
 
 const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000";
@@ -11,7 +11,8 @@ type Tab = "active" | "archived";
 export default function CustomizeSkillsPage() {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<Tab>("active");
-  const [editTarget, setEditTarget] = useState<Skill | null | undefined>(undefined);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const params = new URLSearchParams();
   if (q) params.set("q", q);
@@ -57,12 +58,25 @@ export default function CustomizeSkillsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <button
-          onClick={() => setEditTarget(null)}
-          className="ml-auto px-3 py-1.5 rounded-lg bg-[#1e293b] dark:bg-[#2a2a2a] text-white text-[12px] hover:bg-[#2d3f57] transition-colors"
-        >
-          + 新建技能
-        </button>
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".md,.zip"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) setImportFile(f);
+              e.target.value = "";
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="ml-auto px-3 py-1.5 rounded-lg bg-[#1e293b] dark:bg-[#2a2a2a] text-white text-[12px] hover:bg-[#2d3f57] transition-colors"
+          >
+            导入技能
+          </button>
+        </>
       </div>
 
       {/* Skills list */}
@@ -71,7 +85,7 @@ export default function CustomizeSkillsPage() {
           {skills.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-[#bbb] dark:text-[#333] text-sm gap-2">
               <span className="text-4xl">⚡</span>
-              <span>{q ? "没有匹配的技能" : "还没有技能，点击右上角新建"}</span>
+              <span>{q ? "没有匹配的技能" : "还没有技能，点击右上角导入"}</span>
             </div>
           ) : (
             categories.map((cat) => (
@@ -88,7 +102,7 @@ export default function CustomizeSkillsPage() {
                         skill={skill}
                         onUpdate={refresh}
                         onDelete={refresh}
-                        onEdit={(s) => setEditTarget(s)}
+                        onEdit={() => {}}
                       />
                     ))}
                 </div>
@@ -98,11 +112,11 @@ export default function CustomizeSkillsPage() {
         </div>
       </div>
 
-      {editTarget !== undefined && (
-        <SkillEditor
-          skill={editTarget}
-          onSave={() => { refresh(); setEditTarget(undefined); }}
-          onClose={() => setEditTarget(undefined)}
+      {importFile && (
+        <SkillImportModal
+          file={importFile}
+          onClose={() => setImportFile(null)}
+          onDone={refresh}
         />
       )}
     </div>
