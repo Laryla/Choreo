@@ -101,8 +101,9 @@ class McpManager:
                 cfg = (row.tools_config or {}).get(tool, {}) if row else {}
                 if cfg.get("approval") == "deny" or not cfg.get("enabled", True):
                     return None
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("DB error checking schema access for %s/%s: %s", server, tool, e)
+            return None  # fail-closed: don't expose schema on DB error
 
         try:
             return t.args_schema.model_json_schema()  # pydantic v2
@@ -113,6 +114,11 @@ class McpManager:
 
     async def call(self, server: str, tool: str, arguments: dict) -> str:
         """通过注册表找到工具并调用，结果经过 deny_interceptor。"""
+        # Enforce deny policy before reaching ainvoke
+        approval = await _get_approval(server, tool)
+        if approval == "deny":
+            return f"Tool '{server}/{tool}' is blocked by policy."
+
         server_tools = self._tool_registry.get(server)
         if server_tools is None:
             return f"MCP server '{server}' is not connected or has no tools."
@@ -181,6 +187,12 @@ class McpManager:
 
         self._tool_registry[server_name] = {t.name: t for t in tools}
         for t in tools:
+            if t.name in self._tool_to_server:
+                logger.warning(
+                    "Tool name collision: '%s' exists in both '%s' and '%s'. "
+                    "deny_interceptor will use '%s'.",
+                    t.name, self._tool_to_server[t.name], server_name, server_name,
+                )
             self._tool_to_server[t.name] = server_name
 
         logger.info("MCP server '%s': discovered %d tools.", server_name, len(tools))
