@@ -2,7 +2,7 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from choreo.model_factory import load_model
 from choreo.agents.tools import read_git_log, send_notification, read_file, write_file, edit_file, list_dir, grep, bash, skill_view
-from choreo.agents.middlewares import ModelCallLimitMiddleware, TitleMiddleware, ModelSelectorMiddleware
+from choreo.agents.middlewares import ModelCallLimitMiddleware, TitleMiddleware, ModelSelectorMiddleware, SkillsContextMiddleware
 from choreo.config import settings
 
 llm = load_model()
@@ -26,6 +26,7 @@ def create_choreo_agent(checkpointer):
             "修改文件前先用 read_file 了解内容；执行 bash 命令和发送通知前必须等用户确认。"
         ),
         middleware=[
+            SkillsContextMiddleware(),
             ModelSelectorMiddleware(),
             HumanInTheLoopMiddleware(
                 interrupt_on={

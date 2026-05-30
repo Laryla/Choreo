@@ -1,10 +1,19 @@
 import { createContext, useContext, useState, useRef, ReactNode } from "react";
 
+export interface ToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
 export interface Message {
   id: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
   thinking?: string;
+  tool_calls?: ToolCall[];   // assistant message 调用了工具
+  tool_name?: string;        // tool result: 工具名
+  tool_call_id?: string;     // tool result: 对应的调用 id
 }
 
 interface ChatState {
@@ -25,7 +34,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingThinking, setStreamingThinking] = useState("");
 
-  // ref 同步追踪，避免 StrictMode 下 state updater 被调用两次导致双响应
   const contentRef = useRef("");
   const thinkingRef = useRef("");
 
@@ -67,7 +75,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       ]);
     }
 
-    // 清空 ref 和 state
     contentRef.current = "";
     thinkingRef.current = "";
     setStreamingContent("");

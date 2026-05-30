@@ -15,6 +15,31 @@ router = APIRouter()
 RUN_QUEUES: dict[str, asyncio.Queue] = {}
 
 
+def _serialize(obj):
+    """将 LangChain / LangGraph 对象递归序列化为 JSON 兼容类型。"""
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    if isinstance(obj, dict):
+        return {k: _serialize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_serialize(i) for i in obj]
+    if hasattr(obj, "model_dump"):
+        try:
+            return _serialize(obj.model_dump())
+        except Exception:
+            pass
+    if hasattr(obj, "dict"):
+        try:
+            return _serialize(obj.dict())
+        except Exception:
+            pass
+    try:
+        json.dumps(obj)
+        return obj
+    except (TypeError, ValueError):
+        return str(obj)
+
+
 @router.post("/{thread_id}/runs/stream")
 async def stream_run(thread_id: str, body: RunInput):
     if not await thread_store.get(thread_id):
@@ -49,7 +74,6 @@ async def _run_agent(
     await queue.put({"event": "metadata", "data": {"run_id": run_id}})
     await thread_store.set_status(thread_id, "running")
 
-    # acquire sandbox（懒加载，sandbox 在工具调用时也会自动 acquire，这里提前初始化）
     sandbox_name = (context or {}).get("sandbox_name")
     await get_sandbox_manager().acquire(thread_id, sandbox_name)
 
@@ -65,17 +89,17 @@ async def _run_agent(
         async for chunk in get_agent().astream(
             run_input,
             config=config,
-            stream_mode=["updates", "messages"],
+            stream_mode=["updates", "messages", "custom", "tasks", "values"],
             version="v2",
         ):
             chunk_type = chunk.get("type")
             data = chunk.get("data")
 
+            # ── messages: LLM token 流 ──────────────────────────────
             if chunk_type == "messages":
-                token, _ = data
+                token, metadata = data
 
-                # 只处理流式 chunk，过滤掉 LangGraph 在 model 节点结束后
-                # 再次发出的完整 AIMessage（否则内容会重复发送两次）
+                # 只转发流式 chunk，过滤完整 AIMessage replay（否则内容会双发）
                 if not isinstance(token, AIMessageChunk):
                     continue
 
@@ -84,9 +108,11 @@ async def _run_agent(
                     "data": [{
                         "content": token.content,
                         "additional_kwargs": token.additional_kwargs or {},
+                        "node": metadata.get("langgraph_node", ""),
                     }],
                 })
 
+            # ── updates: 节点状态变更 ───────────────────────────────
             elif chunk_type == "updates":
                 if "__interrupt__" in data:
                     interrupts = data["__interrupt__"]
@@ -99,6 +125,33 @@ async def _run_agent(
                         "event": "updates",
                         "data": {"__interrupt__": interrupt_payload},
                     })
+                else:
+                    # 普通节点状态变更（node_name → {state_diff}）
+                    await queue.put({
+                        "event": "updates",
+                        "data": _serialize(data),
+                    })
+
+            # ── custom: 节点内 get_stream_writer() 发出的进度 ───────
+            elif chunk_type == "custom":
+                await queue.put({
+                    "event": "custom",
+                    "data": _serialize(data),
+                })
+
+            # ── tasks: 工具调用任务开始/结束 ────────────────────────
+            elif chunk_type == "tasks":
+                await queue.put({
+                    "event": "tasks",
+                    "data": _serialize(data),
+                })
+
+            # ── values: 每步执行后的完整 state 快照 ─────────────────
+            elif chunk_type == "values":
+                await queue.put({
+                    "event": "values",
+                    "data": _serialize(data),
+                })
 
     except Exception as e:
         await queue.put({"event": "error", "data": {"message": str(e)}})
