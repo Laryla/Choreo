@@ -76,6 +76,11 @@ const TOOL_TYPES: Record<string, ToolType> = {
   },
 };
 
+const MCP_SERVER_ICONS: Record<string, string> = {
+  github: "🐙", postgres: "🐘", filesystem: "🗂️",
+  slack: "💬", notion: "📝", "brave-search": "🔍",
+};
+
 const TOOL_CATEGORY: Record<string, keyof typeof TOOL_TYPES> = {
   read_file: "read",
   read_git_log: "read",
@@ -145,10 +150,31 @@ function getArgsSummary(name: string, args: Record<string, unknown>): string {
 
 function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   const [open, setOpen] = useState(false);
-  const type = getToolType(toolCall.name);
+
+  const isMcp = toolCall.name === "mcp_call";
+  const mcpServer = isMcp ? String(toolCall.args.server ?? "") : "";
+  const mcpTool   = isMcp ? String(toolCall.args.tool ?? "") : "";
+  const displayArgs = isMcp
+    ? ((toolCall.args.arguments ?? {}) as Record<string, unknown>)
+    : toolCall.args;
+  const displayName = isMcp ? `${mcpServer} · ${mcpTool}` : toolCall.name;
+  const type = isMcp
+    ? {
+        label: mcpServer || "MCP",
+        bar: "bg-violet-500",
+        badge: "bg-violet-100 dark:bg-violet-950",
+        badgeText: "text-violet-700 dark:text-violet-300",
+        cardBg: "bg-[#faf8ff] dark:bg-[#110f1f]",
+        cardBorder: "border-violet-100 dark:border-violet-900/50",
+        resultBg: "bg-[#f5f0ff] dark:bg-[#0e0b1a]",
+        resultBorder: "border-violet-200 dark:border-violet-900",
+        icon: MCP_SERVER_ICONS[mcpServer] ?? "🔌",
+      }
+    : getToolType(toolCall.name);
+
   const isDiff = toolCall.name === "edit_file" || toolCall.name === "write_file";
   const path = String(toolCall.args.path ?? toolCall.args.file_path ?? "");
-  const summary = getArgsSummary(toolCall.name, toolCall.args);
+  const summary = getArgsSummary(toolCall.name, displayArgs);
 
   return (
     <div className={`mb-1.5 rounded-xl border ${type.cardBorder} ${type.cardBg} overflow-hidden`}>
@@ -163,12 +189,17 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
         <div className="flex items-center gap-2 flex-1 min-w-0 py-2.5 pr-3">
           {/* Type badge */}
           <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${type.badge} ${type.badgeText} uppercase tracking-wide`}>
-            {type.label}
+            {isMcp ? "MCP" : type.label}
           </span>
+
+          {/* MCP server icon */}
+          {isMcp && (
+            <span className="flex-shrink-0 text-[13px]">{MCP_SERVER_ICONS[mcpServer] ?? "🔌"}</span>
+          )}
 
           {/* Tool name */}
           <span className="font-mono text-[11.5px] font-semibold text-[#1e293b] dark:text-[#d0d0d0] flex-shrink-0">
-            {toolCall.name}
+            {displayName}
           </span>
 
           {/* Args summary */}
@@ -190,10 +221,10 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
       {open && (
         <div className="border-t border-inherit">
           {isDiff ? (
-            <DiffView args={toolCall.args} path={path} />
+            <DiffView args={displayArgs} path={path} />
           ) : (
             <pre className="px-4 py-2.5 text-[11px] font-mono text-[#555] dark:text-[#888] leading-relaxed whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
-              {JSON.stringify(toolCall.args, null, 2)}
+              {JSON.stringify(displayArgs, null, 2)}
             </pre>
           )}
         </div>

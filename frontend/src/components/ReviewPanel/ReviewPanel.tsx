@@ -13,6 +13,11 @@ const TOOL_ICONS: Record<string, string> = {
   send_notification: "◎",
 };
 
+const MCP_SERVER_ICONS: Record<string, string> = {
+  github: "🐙", postgres: "🐘", filesystem: "🗂️",
+  slack: "💬", notion: "📝", "brave-search": "🔍",
+};
+
 // 需要用代码块渲染的参数
 const CODE_KEYS = new Set(["command", "content", "pattern", "old_string", "new_string"]);
 
@@ -26,7 +31,14 @@ export default function ReviewPanel() {
   const config = current.review_configs[0];
   const allowed = config?.allowed_decisions ?? ["approve", "reject"];
   const args = action?.args ?? {};
-  const icon = TOOL_ICONS[action?.name] ?? "◆";
+  const isMcpTool = action?.name?.includes(" · ");
+  const [mcpServer, mcpTool] = isMcpTool
+    ? action!.name.split(" · ", 2)
+    : ["", ""];
+  const displayArgs = isMcpTool ? ((args as any).arguments ?? args) : args;
+  const icon = isMcpTool
+    ? (MCP_SERVER_ICONS[mcpServer] ?? "🔌")
+    : (TOOL_ICONS[action?.name] ?? "◆");
 
   const handle = async (type: Decision["type"]) => {
     setLoading(true);
@@ -60,16 +72,24 @@ export default function ReviewPanel() {
           {/* 工具名行 */}
           <div className="flex items-center gap-2.5 px-4 pt-3 pb-2 border-b border-[#1a1a1a]">
             <span className="text-[#e2b714] text-[14px]">{icon}</span>
-            <span className="text-[#e2b714] text-[13px] font-semibold">{action?.name}</span>
+            {isMcpTool ? (
+              <>
+                <span className="text-[#e2b714] text-[13px] font-semibold">{mcpServer}</span>
+                <span className="text-[#555] text-[13px] mx-1">·</span>
+                <span className="text-[#e2b714] text-[13px] font-semibold">{mcpTool}</span>
+              </>
+            ) : (
+              <span className="text-[#e2b714] text-[13px] font-semibold">{action?.name}</span>
+            )}
             {action?.description && (
               <span className="text-[#444] text-[11px] ml-1">{action.description}</span>
             )}
           </div>
 
           {/* 参数列表 */}
-          {Object.keys(args).length > 0 && (
+          {Object.keys(displayArgs).length > 0 && (
             <div className="px-4 py-3 space-y-2.5 border-b border-[#1a1a1a]">
-              {Object.entries(args).map(([key, val]) => {
+              {Object.entries(displayArgs).map(([key, val]) => {
                 const strVal = typeof val === "string" ? val : JSON.stringify(val, null, 2);
                 const isCode = CODE_KEYS.has(key);
                 const isLong = strVal.length > 60 || strVal.includes("\n");
