@@ -13,6 +13,8 @@ from choreo.skills import set_skill_store, LocalSkillStore
 from choreo.skills.bundled import sync_builtin_skills
 from choreo.gateway.routers import threads, runs, tasks, history, models
 from choreo.gateway.routers import skills as skills_router
+from choreo.gateway.routers import mcp as mcp_router
+from choreo.mcp import McpManager, set_mcp_manager
 
 
 @asynccontextmanager
@@ -25,6 +27,11 @@ async def lifespan(app: FastAPI):
     _skill_store = LocalSkillStore(_skills_root)
     await sync_builtin_skills(_skill_store)
     set_skill_store(_skill_store)
+
+    # 初始化 McpManager（连接失败不阻塞启动）
+    mcp_manager = McpManager()
+    set_mcp_manager(mcp_manager)
+    await mcp_manager.start()
 
     # 1. 建表（幂等）
     await init_db()
@@ -66,3 +73,4 @@ app.include_router(tasks.router,   prefix="/api/tasks",   tags=["tasks"])
 app.include_router(history.router, prefix="/api/history", tags=["history"])
 app.include_router(models.router,  prefix="/models",      tags=["models"])
 app.include_router(skills_router.router, prefix="/api/skills", tags=["skills"])
+app.include_router(mcp_router.router,    prefix="/api/mcp",    tags=["mcp"])
