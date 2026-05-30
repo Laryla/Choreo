@@ -18,8 +18,8 @@ async def test_manager_reload_is_safe_when_no_servers():
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="stub returns ''; Task 3 must return error message", strict=False)
 async def test_call_returns_error_for_unknown_server():
     manager = McpManager()
     result = await manager.call("nonexistent", "some_tool", {})
-    # skeleton returns "" so just verify it doesn't crash
-    assert isinstance(result, str)
+    assert "not found" in result.lower() or "not connected" in result.lower()

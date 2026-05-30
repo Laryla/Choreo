@@ -1,19 +1,10 @@
 # backend/choreo/mcp/manager.py
 from __future__ import annotations
-import asyncio
 import logging
-from dataclasses import dataclass
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ToolInfo:
-    name: str
-    description: str
-    server: str
 
 
 class McpManager:
@@ -88,9 +79,10 @@ class McpManager:
                 approval = await _get_approval(server_name, tool_name)
                 if approval == "deny":
                     from langchain_core.messages import ToolMessage
+                    tool_call_id = getattr(request.runtime, "tool_call_id", "") or ""
                     return ToolMessage(
                         content=f"Tool '{server_name}/{tool_name}' is blocked by policy.",
-                        tool_call_id=request.runtime.tool_call_id,
+                        tool_call_id=tool_call_id,
                     )
             return await handler(request)
 
@@ -105,6 +97,6 @@ async def _get_approval(server: str, tool: str) -> str:
             row = await session.get(McpServerRow, server)
             if row and row.tools_config:
                 return row.tools_config.get(tool, {}).get("approval", "confirm")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to read approval config for %s/%s: %s", server, tool, e)
     return "confirm"
