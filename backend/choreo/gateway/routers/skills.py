@@ -158,3 +158,15 @@ async def list_skill_files(category: str, name: str):
     if not await store.get(f"{category}/{name}"):
         raise HTTPException(404, "skill not found")
     return {"files": await store.list_files(f"{category}/{name}")}
+
+
+@router.get("/{category}/{name}/files/{file_path:path}")
+async def read_skill_file(category: str, name: str, file_path: str):
+    store = get_skill_store()
+    try:
+        content = await store.read_file(f"{category}/{name}", file_path)
+        return {"content": content, "filename": file_path}
+    except PermissionError:
+        raise HTTPException(403, "access denied")
+    except FileNotFoundError:
+        raise HTTPException(404, f"file not found: {file_path}")

@@ -160,10 +160,28 @@ class LocalSkillStore:
         skill_dir = self._root / parts[0] / parts[1]
         if not skill_dir.exists():
             return []
-        return sorted(
-            f.name for f in skill_dir.iterdir()
-            if f.is_file() and f.name not in _EXCLUDED_FILES
-        )
+        items: list[str] = []
+        for f in skill_dir.iterdir():
+            if f.name.startswith("."):
+                continue
+            if f.is_dir():
+                items.append(f.name + "/")
+            elif f.is_file() and f.name not in _EXCLUDED_FILES:
+                items.append(f.name)
+        # directories first, then files, both alphabetical
+        return sorted(items, key=lambda x: (not x.endswith("/"), x.lower()))
+
+    async def read_file(self, skill_id: str, file_path: str) -> str:
+        parts = skill_id.split("/", 1)
+        if len(parts) != 2:
+            raise FileNotFoundError("Invalid skill id")
+        skill_dir = (self._root / parts[0] / parts[1]).resolve()
+        target = (skill_dir / file_path).resolve()
+        if not str(target).startswith(str(skill_dir)):
+            raise PermissionError("Path traversal detected")
+        if not target.exists() or not target.is_file():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        return await asyncio.to_thread(target.read_text, "utf-8", "replace")
 
     async def create(self, data: SkillCreate) -> Skill:
         skill_dir = self._root / data.category / data.name

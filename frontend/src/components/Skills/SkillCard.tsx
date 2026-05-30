@@ -1,93 +1,117 @@
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import type { Skill, SkillPatch } from "@/api/skills";
-import { patchSkill, deleteSkill } from "@/api/skills";
+import type { Skill } from "@/api/skills";
+import { listSkillFiles } from "@/api/skills";
 
 interface Props {
   skill: Skill;
-  onUpdate: () => void;
-  onDelete: () => void;
-  onEdit: (skill: Skill) => void;
+  selected?: boolean;
+  selectedFile?: string | null; // null = SKILL.md
+  onSelect: (skill: Skill) => void;
+  onFileSelect: (skill: Skill, file: string | null) => void;
 }
 
-export default function SkillCard({ skill, onUpdate, onDelete, onEdit }: Props) {
+function FolderIcon() {
+  return (
+    <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#aaa]" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M1.5 4.5A1.5 1.5 0 013 3h3.586a1 1 0 01.707.293L8.5 4.5H13A1.5 1.5 0 0114.5 6v5A1.5 1.5 0 0113 12.5H3A1.5 1.5 0 011.5 11V4.5z" />
+    </svg>
+  );
+}
+
+export default function SkillCard({ skill, selected, selectedFile, onSelect, onFileSelect }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<string[] | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const patch = async (body: SkillPatch) => {
-    setBusy(true);
-    try { await patchSkill(skill.category, skill.name, body); onUpdate(); }
-    finally { setBusy(false); }
+  const toggleExpand = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!expanded && files === null) {
+      setLoading(true);
+      try {
+        const data = await listSkillFiles(skill.category, skill.name);
+        setFiles(Array.isArray(data) ? data : []);
+      } catch {
+        setFiles([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    setExpanded((v) => !v);
   };
 
-  const remove = async () => {
-    if (!confirm(`删除技能 ${skill.id}？此操作不可撤销。`)) return;
-    setBusy(true);
-    try { await deleteSkill(skill.category, skill.name); onDelete(); }
-    finally { setBusy(false); }
-  };
-
-  const sourceLabel: Record<string, string> = {
-    auto: "自动", builtin: "内置", manual: "",
-  };
-  const sourceBadge: Record<string, string> = {
-    auto: "bg-[#f0fdf4] dark:bg-[#0d1f12] text-[#16a34a] dark:text-[#4ade80] border-[#bbf7d0] dark:border-[#14532d]",
-    builtin: "bg-[#eff6ff] dark:bg-[#0c1a2e] text-[#3b82f6] dark:text-[#60a5fa] border-[#bfdbfe] dark:border-[#1e3a5f]",
-  };
+  const isSkillMdActive = selected && selectedFile === null;
 
   return (
-    <div className={`rounded-xl border bg-white dark:bg-[#1a1a1a] ${skill.pinned ? "border-[#e2b714] dark:border-[#a38200]" : "border-[#e5e1d8] dark:border-[#252525]"}`}>
-      <div className="flex items-start gap-2 px-4 py-3 cursor-pointer select-none" onClick={() => setExpanded(e => !e)}>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap mb-1">
-            {skill.pinned && <span className="text-[#e2b714]">📌</span>}
-            <span className="font-mono text-[12px] font-semibold text-[#1e293b] dark:text-[#c8c8c8]">{skill.id}</span>
-            {skill.source !== "manual" && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] border ${sourceBadge[skill.source] ?? ""}`}>
-                {sourceLabel[skill.source]}
-              </span>
-            )}
-            {skill.tags.map(t => (
-              <span key={t} className="px-1.5 py-0.5 rounded-full text-[10px] bg-[#f5f2eb] dark:bg-[#222] text-[#666] dark:text-[#888]">#{t}</span>
-            ))}
+    <div>
+      {/* Skill row */}
+      <div
+        onClick={() => { onSelect(skill); onFileSelect(skill, null); }}
+        className={`flex items-center gap-1 pl-1 pr-3 py-2 rounded-lg cursor-pointer select-none transition-colors
+          ${selected && !expanded
+            ? "bg-[#eae7e0] dark:bg-[#222]"
+            : "hover:bg-[#f0ede6] dark:hover:bg-[#181818]"}`}
+      >
+        <button
+          onClick={toggleExpand}
+          className="p-1 rounded flex-shrink-0 text-[#bbb] hover:text-[#555] dark:hover:text-[#aaa] transition-colors"
+        >
+          <svg
+            className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`}
+            viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"
+          >
+            <path d="M4 2l4 4-4 4" />
+          </svg>
+        </button>
+        <span className={`font-mono text-[12px] flex-1 truncate leading-snug
+          ${selected ? "text-[#1e293b] dark:text-[#e8e8e8] font-semibold" : "text-[#444] dark:text-[#aaa]"}`}>
+          {skill.name}
+        </span>
+      </div>
+
+      {/* File tree */}
+      {expanded && (
+        <div className="ml-6 mb-1">
+          {/* SKILL.md */}
+          <div
+            onClick={() => { onSelect(skill); onFileSelect(skill, null); }}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors
+              ${isSkillMdActive ? "bg-[#eae7e0] dark:bg-[#222]" : "hover:bg-[#f0ede6] dark:hover:bg-[#181818]"}`}
+          >
+            <span className={`text-[11.5px] ${isSkillMdActive ? "text-[#1e293b] dark:text-[#e8e8e8] font-medium" : "text-[#555] dark:text-[#888]"}`}>
+              SKILL.md
+            </span>
           </div>
-          <p className="text-[11.5px] text-[#555] dark:text-[#888] line-clamp-1">{skill.description}</p>
-          {skill.use_count > 0 && (
-            <p className="text-[10px] text-[#bbb] dark:text-[#555] mt-0.5">
-              调用 {skill.use_count} 次{skill.last_activity_at ? ` · ${new Date(skill.last_activity_at * 1000).toLocaleDateString("zh-CN")}` : ""}
-            </p>
+
+          {loading ? (
+            <div className="px-3 py-1 text-[10.5px] text-[#bbb]">加载中…</div>
+          ) : (
+            (files ?? []).map((f) => {
+              const isDir = f.endsWith("/");
+              const isActive = selected && selectedFile === f;
+              return (
+                <div
+                  key={f}
+                  onClick={isDir ? undefined : () => { onSelect(skill); onFileSelect(skill, f); }}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors
+                    ${isDir ? "cursor-default" : "cursor-pointer"}
+                    ${isActive ? "bg-[#eae7e0] dark:bg-[#222]" : isDir ? "" : "hover:bg-[#f0ede6] dark:hover:bg-[#181818]"}`}
+                >
+                  {isDir && <FolderIcon />}
+                  <span className={`text-[11.5px] flex-1 truncate
+                    ${isActive ? "text-[#1e293b] dark:text-[#e8e8e8] font-medium" : "text-[#555] dark:text-[#888]"}`}>
+                    {f}
+                  </span>
+                  {isDir && (
+                    <svg className="w-3 h-3 text-[#ccc] flex-shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M4 2l4 4-4 4" />
+                    </svg>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
-        <svg className={`w-3.5 h-3.5 text-[#aaa] flex-shrink-0 mt-1 transition-transform ${expanded ? "rotate-90" : ""}`} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M4 2l4 4-4 4" />
-        </svg>
-      </div>
-      {expanded && (
-        <div className="px-4 pb-3 border-t border-[#f0ede6] dark:border-[#222] pt-3">
-          <div className="prose prose-sm dark:prose-invert max-w-none text-[12px] leading-relaxed">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{skill.content || "_（无内容）_"}</ReactMarkdown>
-          </div>
-        </div>
       )}
-      <div className="flex gap-1 px-4 py-2 border-t border-[#f0ede6] dark:border-[#222]">
-        <button onClick={() => patch({ pinned: !skill.pinned })} disabled={busy}
-          className="text-[11px] px-2 py-1 rounded-md text-[#888] hover:text-[#e2b714] hover:bg-[#fef9c3] dark:hover:bg-[#1c1900] transition-colors disabled:opacity-40">
-          {skill.pinned ? "取消锁定" : "锁定"}
-        </button>
-        <button onClick={() => onEdit(skill)} disabled={busy}
-          className="text-[11px] px-2 py-1 rounded-md text-[#888] hover:text-[#1e293b] dark:hover:text-[#c8c8c8] hover:bg-[#f0ede6] dark:hover:bg-[#252525] transition-colors disabled:opacity-40">
-          编辑
-        </button>
-        <button onClick={() => patch({ state: skill.state === "active" ? "archived" : "active" })} disabled={busy}
-          className="text-[11px] px-2 py-1 rounded-md text-[#888] hover:text-[#555] hover:bg-[#f0ede6] dark:hover:bg-[#252525] transition-colors disabled:opacity-40">
-          {skill.state === "active" ? "归档" : "恢复"}
-        </button>
-        <button onClick={remove} disabled={busy || skill.pinned}
-          className="text-[11px] px-2 py-1 rounded-md text-[#888] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors disabled:opacity-40 ml-auto">
-          删除
-        </button>
-      </div>
     </div>
   );
 }

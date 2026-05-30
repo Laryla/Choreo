@@ -11,11 +11,11 @@ export function useChat(initialThreadId?: string) {
   const [streaming, setStreaming] = useState(false);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(initialThreadId ?? null);
 
-  // 路由切换时同步重置 ref，避免新建聊天时还用旧 thread ID
   useEffect(() => {
     threadIdRef.current = initialThreadId ?? null;
     setCurrentThreadId(initialThreadId ?? null);
   }, [initialThreadId]);
+
   const { addMessage, appendToken, appendThinking, finalizeToken } = useChatStore();
   const { openReview } = useReviewStore();
 
@@ -36,17 +36,17 @@ export function useChat(initialThreadId?: string) {
       const tid = await ensureThread();
       const stream = client.runs.stream(tid, "choreo", {
         input: { messages: [{ role: "user", content: text }] },
-        streamMode: ["messages", "updates"],
+        streamMode: ["messages", "updates", "custom", "tasks", "values"],
         ...(context && Object.keys(context).length > 0 ? { context } : {}),
       } as any);
 
       for await (const chunk of stream as any) {
+        // ── LLM token 流 ─────────────────────────────────────────
         if (chunk.event === "messages") {
           const msgs: any[] = Array.isArray(chunk.data) ? chunk.data : [chunk.data];
           for (const msg of msgs) {
             if (!msg) continue;
 
-            // DeepSeek reasoner: additional_kwargs.reasoning_content
             const reasoning = msg.additional_kwargs?.reasoning_content;
             if (reasoning) appendThinking(reasoning);
 
@@ -54,7 +54,6 @@ export function useChat(initialThreadId?: string) {
             if (typeof content === "string") {
               if (content) appendToken(content);
             } else if (Array.isArray(content)) {
-              // Claude thinking blocks: [{type: "thinking", thinking: "..."}, {type: "text", text: "..."}]
               for (const block of content) {
                 if (block.type === "thinking" || block.type === "reasoning") {
                   const t = block.thinking ?? block.reasoning ?? "";
@@ -66,12 +65,59 @@ export function useChat(initialThreadId?: string) {
             }
           }
         }
-        if (chunk.event === "updates" && chunk.data?.__interrupt__) {
-          const interruptValue = chunk.data.__interrupt__[0]?.value;
-          if (interruptValue?.action_requests) {
-            openReview({ threadId: tid, ...interruptValue });
+
+        // ── 节点状态更新 ─────────────────────────────────────────
+        if (chunk.event === "updates") {
+          const data = chunk.data ?? {};
+
+          // HITL 中断
+          if (data.__interrupt__) {
+            const interruptValue = data.__interrupt__[0]?.value;
+            if (interruptValue?.action_requests) {
+              openReview({ threadId: tid, ...interruptValue });
+            }
+            break;
           }
-          break;
+
+          // model 节点：agent 决定调用工具
+          const modelMsgs: any[] = data?.model?.messages ?? [];
+          for (const msg of modelMsgs) {
+            const toolCalls = msg?.tool_calls;
+            if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+              // 先把流式积累的文本 finalize（agent 的前置文字）
+              finalizeToken();
+              addMessage({
+                role: "assistant",
+                content: typeof msg.content === "string" ? msg.content : "",
+                tool_calls: toolCalls.map((tc: any) => ({
+                  id: tc.id ?? "",
+                  name: tc.name ?? tc.function?.name ?? "",
+                  args: tc.args ?? tc.function?.arguments ?? {},
+                })),
+              });
+            }
+          }
+
+          // tools 节点：工具执行结果
+          const toolsMsgs: any[] = data?.tools?.messages ?? [];
+          for (const msg of toolsMsgs) {
+            if (msg?.type === "tool" || msg?.role === "tool") {
+              addMessage({
+                role: "tool",
+                content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+                tool_name: msg.name ?? "",
+                tool_call_id: msg.tool_call_id ?? "",
+              });
+            }
+          }
+        }
+
+        // ── 自定义进度事件（middleware 发出）──────────────────────
+        if (chunk.event === "custom") {
+          const status = chunk.data?.status ?? chunk.data?.message;
+          if (status) {
+            addMessage({ role: "system", content: `⚙️ ${status}` });
+          }
         }
       }
     } finally {
