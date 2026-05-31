@@ -160,14 +160,12 @@ class McpManager:
                     "args": s.args or [],
                     "env": s.env or {},
                 }
-            elif s.transport in ("sse", "http", "streamable_http"):
+            elif s.transport in ("sse", "http"):
                 if not s.url:
                     logger.warning("MCP server '%s' has no url, skipping.", s.name)
                     continue
-                # langchain-mcp-adapters uses "streamable_http" for HTTP transport
-                transport = "streamable_http" if s.transport == "http" else s.transport
                 configs[s.name] = {
-                    "transport": transport,
+                    "transport": s.transport,
                     "url": s.url,
                 }
         return configs
