@@ -9,16 +9,27 @@ import { listServers, createServer, patchServer, deleteServer, reloadServers } f
 const PRESETS: Array<{
   name: string; icon: string; label: string; desc: string; official: boolean;
   transport: "stdio"; command: string; args: string[]; env_keys: string[];
+  // arg_prompts: 需要追加到 args 末尾的参数（label + placeholder）
+  arg_prompts?: Array<{ label: string; placeholder: string }>;
 }> = [
   { name: "github", icon: "🐙", label: "GitHub", desc: "仓库、Issues、PR、Code Search", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-github"], env_keys: ["GITHUB_PERSONAL_ACCESS_TOKEN"] },
-  { name: "postgres", icon: "🐘", label: "PostgreSQL", desc: "查询、Schema 管理、事务", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-postgres"], env_keys: ["POSTGRES_CONNECTION_STRING"] },
-  { name: "filesystem", icon: "🗂️", label: "Filesystem", desc: "本地文件系统读写", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed"], env_keys: [] },
+  { name: "postgres", icon: "🐘", label: "PostgreSQL", desc: "查询、Schema 管理、事务", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-postgres"], env_keys: [], arg_prompts: [{ label: "数据库连接串", placeholder: "postgresql://user:pass@localhost:5432/dbname" }] },
+  { name: "filesystem", icon: "🗂️", label: "Filesystem", desc: "本地文件系统读写", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem"], env_keys: [], arg_prompts: [{ label: "允许访问的目录", placeholder: "/Users/you/projects" }] },
   { name: "brave-search", icon: "🔍", label: "Brave Search", desc: "实时网页搜索", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-brave-search"], env_keys: ["BRAVE_API_KEY"] },
   { name: "slack", icon: "💬", label: "Slack", desc: "消息收发、频道管理", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-slack"], env_keys: ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"] },
   { name: "notion", icon: "📝", label: "Notion", desc: "页面读写、数据库查询", official: false, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-notion"], env_keys: ["NOTION_API_TOKEN"] },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const ENV_PLACEHOLDERS: Record<string, string> = {
+  GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_xxxxxxxxxxxxxxxxxxxx",
+  POSTGRES_CONNECTION_STRING: "postgresql://user:pass@localhost:5432/dbname",
+  BRAVE_API_KEY: "BSA_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  SLACK_BOT_TOKEN: "xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx",
+  SLACK_TEAM_ID: "T0XXXXXXXXX",
+  NOTION_API_TOKEN: "secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+};
 
 const APPROVAL_LABELS: Record<string, string> = {
   auto: "自动允许", confirm: "需要确认", deny: "禁用",
@@ -67,6 +78,8 @@ function AddServerModal({ onClose, onCreated, installed }: AddModalProps) {
   const [transport, setTransport] = useState<"stdio" | "sse" | "http">("stdio");
   const [name, setName] = useState("");
   const [command, setCommand] = useState("");
+  const [args, setArgs] = useState<string[]>([]);
+  const [argPrompts, setArgPrompts] = useState<Array<{ label: string; placeholder: string; value: string }>>([]);
   const [url, setUrl] = useState("");
   const [envRows, setEnvRows] = useState<[string, string][]>([["", ""]]);
   const [jsonText, setJsonText] = useState(`{\n  "mcpServers": {\n    "my-server": {\n      "command": "npx",\n      "args": ["-y", "@modelcontextprotocol/server-xxx"],\n      "env": {}\n    }\n  }\n}`);
@@ -93,7 +106,8 @@ function AddServerModal({ onClose, onCreated, installed }: AddModalProps) {
         if (!name.trim()) { setError("名称不能为空"); return; }
         const env: Record<string, string> = {};
         envRows.forEach(([k, v]) => { if (k.trim()) env[k.trim()] = v; });
-        body = { name: name.trim(), transport, command: transport === "stdio" ? command : undefined, url: transport !== "stdio" ? url : undefined, env };
+        const finalArgs = [...args, ...argPrompts.map((p) => p.value).filter(Boolean)];
+        body = { name: name.trim(), transport, command: transport === "stdio" ? command : undefined, args: finalArgs.length ? finalArgs : undefined, url: transport !== "stdio" ? url : undefined, env };
       }
       const created = await createServer(body);
       onCreated(created);
@@ -106,6 +120,18 @@ function AddServerModal({ onClose, onCreated, installed }: AddModalProps) {
   };
 
   const installPreset = async (preset: typeof PRESETS[0]) => {
+    // 有必填字段时，预填表单让用户填写后提交
+    if (preset.env_keys.length > 0 || preset.arg_prompts?.length) {
+      setName(preset.name);
+      setTransport(preset.transport);
+      setCommand(preset.command);
+      setArgs(preset.args);
+      setEnvRows(preset.env_keys.length > 0 ? preset.env_keys.map((k) => [k, ""]) : [["", ""]]);
+      setArgPrompts((preset.arg_prompts ?? []).map((p) => ({ ...p, value: "" })));
+      setMode("form");
+      return;
+    }
+    // 无需任何配置直接安装
     setBusy(true);
     try {
       const created = await createServer({ name: preset.name, transport: preset.transport, command: preset.command, args: preset.args });
@@ -177,6 +203,21 @@ function AddServerModal({ onClose, onCreated, installed }: AddModalProps) {
                     className="w-full px-3 py-2 rounded-lg border border-[#e5e1d8] dark:border-[#252525] bg-[#f5f2eb] dark:bg-[#111] text-[12px] font-mono text-[#1e293b] dark:text-[#e8e8e8] outline-none focus:border-[#1e90ff]" />
                 </div>
               )}
+              {argPrompts.length > 0 && (
+                <div className="space-y-3">
+                  {argPrompts.map((p, i) => (
+                    <div key={i}>
+                      <label className="block text-[11.5px] font-semibold text-[#666] dark:text-[#888] mb-1.5">{p.label}</label>
+                      <input
+                        value={p.value}
+                        onChange={(e) => setArgPrompts((prev) => prev.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x))}
+                        placeholder={p.placeholder}
+                        className="w-full px-3 py-2 rounded-lg border border-[#e5e1d8] dark:border-[#252525] bg-[#f5f2eb] dark:bg-[#111] text-[12px] font-mono text-[#1e293b] dark:text-[#e8e8e8] outline-none focus:border-[#1e90ff]"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
               <div>
                 <label className="block text-[11.5px] font-semibold text-[#666] dark:text-[#888] mb-1.5">环境变量</label>
                 <div className="space-y-2">
@@ -184,7 +225,7 @@ function AddServerModal({ onClose, onCreated, installed }: AddModalProps) {
                     <div key={i} className="flex gap-2 items-center">
                       <input value={k} onChange={(e) => setEnvKey(i, e.target.value)} placeholder="KEY"
                         className="flex-1 px-3 py-1.5 rounded-lg border border-[#e5e1d8] dark:border-[#252525] bg-[#f5f2eb] dark:bg-[#111] text-[11.5px] font-mono text-[#1e293b] dark:text-[#e8e8e8] outline-none" />
-                      <input value={v} onChange={(e) => setEnvVal(i, e.target.value)} placeholder="VALUE" type="password"
+                      <input value={v} onChange={(e) => setEnvVal(i, e.target.value)} placeholder={ENV_PLACEHOLDERS[k] ?? "VALUE"} type="password"
                         className="flex-[2] px-3 py-1.5 rounded-lg border border-[#e5e1d8] dark:border-[#252525] bg-[#f5f2eb] dark:bg-[#111] text-[11.5px] font-mono text-[#1e293b] dark:text-[#e8e8e8] outline-none" />
                       <button onClick={() => delEnvRow(i)} className="p-1.5 rounded-lg text-[#ccc] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
                         <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 4h10M6 4V3h4v1M5 4l.5 9h5L11 4"/></svg>

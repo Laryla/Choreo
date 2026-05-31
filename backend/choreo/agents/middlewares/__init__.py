@@ -5,6 +5,8 @@ from choreo.agents.middlewares.model_selector import ModelSelectorMiddleware
 from choreo.agents.middlewares.skills_context import SkillsContextMiddleware
 from choreo.agents.middlewares.mcp_context import McpContextMiddleware
 from choreo.agents.middlewares.mcp_approval import McpApprovalMiddleware
+from choreo.agents.middlewares.retry_tool import RetryToolCallMiddleware
+from choreo.agents.middlewares.unified_hitl import UnifiedHITLMiddleware
 
 __all__ = [
     "ModelCallLimitMiddleware",
@@ -14,4 +16,6 @@ __all__ = [
     "SkillsContextMiddleware",
     "McpContextMiddleware",
     "McpApprovalMiddleware",
+    "RetryToolCallMiddleware",
+    "UnifiedHITLMiddleware",
 ]

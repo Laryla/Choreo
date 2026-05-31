@@ -19,6 +19,9 @@ frontend/.vite/
 # 沙箱工作目录
 backend/sandbox/
 
+# skill
+backend/skills
+
 # Claude Code / Superpowers
 .superpowers/
 docs/superpowers/

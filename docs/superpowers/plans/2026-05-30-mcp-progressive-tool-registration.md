@@ -356,6 +356,86 @@ async def _sync_to_db(self, server_name: str, tools: list[BaseTool]) -> None:
 - [ ] **Step 3: 实现 `get_index` 和 `call`**
 
 ```python
+@staticmethod
+def _json_type_hint(prop: dict) -> str:
+    """Map a JSON Schema property dict to a compact type string."""
+    t = prop.get("type", "")
+    if t == "string":
+        if "enum" in prop:
+            return "|".join(f'"{v}"' for v in prop["enum"])
+        return "str"
+    if t == "integer":
+        return "int"
+    if t == "number":
+        return "float"
+    if t == "boolean":
+        return "bool"
+    if t == "array":
+        inner = McpManager._json_type_hint(prop.get("items", {}))
+        return f"list[{inner}]"
+    if t == "object":
+        return "dict"
+    # anyOf / oneOf fallback
+    for key in ("anyOf", "oneOf"):
+        variants = prop.get(key, [])
+        non_null = [v for v in variants if v.get("type") != "null"]
+        if non_null:
+            return McpManager._json_type_hint(non_null[0])
+    return "any"
+
+
+def _tool_signature(self, t: BaseTool) -> str:
+    """Build 'tool_name(param: type, optional?: type)' from tool schema."""
+    try:
+        if t.args_schema:
+            try:
+                schema = t.args_schema.model_json_schema()  # pydantic v2
+            except AttributeError:
+                schema = t.args_schema.schema()             # pydantic v1 fallback
+        else:
+            schema = {}
+        required = set(schema.get("required", []))
+        params = []
+        for name, prop in schema.get("properties", {}).items():
+            type_hint = self._json_type_hint(prop)
+            if name in required:
+                params.append(f"{name}: {type_hint}")
+            else:
+                params.append(f"{name}?: {type_hint}")
+        return f"{t.name}({', '.join(params)})"
+    except Exception:
+        return t.name
+
+
+async def get_schema(self, server: str, tool: str) -> dict | None:
+    """返回指定工具的完整 JSON schema，过滤 deny/disabled 工具，供 mcp_describe 使用。"""
+    from choreo.db import SessionLocal, McpServerRow
+
+    server_tools = self._tool_registry.get(server)
+    if not server_tools:
+        return None
+    t = server_tools.get(tool)
+    if not t or not t.args_schema:
+        return None
+
+    # 过滤 deny/disabled，避免暴露被 block 工具的 schema
+    try:
+        async with SessionLocal() as session:
+            row = await session.get(McpServerRow, server)
+            cfg = (row.tools_config or {}).get(tool, {}) if row else {}
+            if cfg.get("approval") == "deny" or not cfg.get("enabled", True):
+                return None
+    except Exception:
+        pass
+
+    try:
+        return t.args_schema.model_json_schema()  # pydantic v2
+    except AttributeError:
+        return t.args_schema.schema()             # pydantic v1 fallback
+    except Exception:
+        return None
+
+
 async def get_index(self) -> str:
     """生成紧凑工具目录文字，过滤 approval=deny 和 enabled=false 的工具。"""
     from choreo.db import SessionLocal, McpServerRow
@@ -383,7 +463,8 @@ async def get_index(self) -> str:
         lines.append(f"\n{server_name}:")
         for t in visible:
             desc = (t.description or "").split("\n")[0][:100]
-            lines.append(f"  {t.name}: {desc}")
+            sig = self._tool_signature(t)
+            lines.append(f"  {sig}: {desc}")
 
     return "\n".join(lines) if len(lines) > 1 else ""
 
@@ -459,6 +540,7 @@ git commit -m "feat(mcp): implement McpManager discover/index/call with deny int
 
 ```python
 # backend/choreo/agents/tools/mcp_tool.py
+import json
 from langchain_core.tools import tool
 from choreo.mcp import get_mcp_manager
 
@@ -469,7 +551,8 @@ async def mcp_call(server: str, tool: str, arguments: dict) -> str:
 
     Use this when you see tools listed under "Available MCP Tools" in the
     system prompt. Pass the server name, tool name, and arguments exactly
-    as shown.
+    as shown in the signature. If unsure about parameter types or constraints,
+    call mcp_describe first.
 
     Args:
         server: MCP server name (e.g. "github", "postgres")
@@ -480,21 +563,46 @@ async def mcp_call(server: str, tool: str, arguments: dict) -> str:
         Tool execution result as string.
     """
     return await get_mcp_manager().call(server, tool, arguments)
+
+
+@tool
+async def mcp_describe(server: str, tool: str) -> str:
+    """Get the full JSON schema for an MCP tool's parameters.
+
+    Use this before calling mcp_call when you are unsure about parameter
+    types, constraints, or enum values. Returns the complete input schema
+    so you can construct the arguments correctly.
+
+    Args:
+        server: MCP server name (e.g. "github", "postgres")
+        tool: Tool name (e.g. "create_issue", "query")
+
+    Returns:
+        Pretty-printed JSON schema, or an error message if not found.
+    """
+    try:
+        manager = get_mcp_manager()
+    except RuntimeError:
+        return "MCP manager not initialized."
+    schema = await manager.get_schema(server, tool)
+    if schema is None:
+        return f"No schema found for '{server}/{tool}'. It may not exist or is blocked."
+    return json.dumps(schema, indent=2, ensure_ascii=False)
 ```
 
 - [ ] **Step 2: 验证可导入**
 
 ```bash
-uv run python -c "from choreo.agents.tools.mcp_tool import mcp_call; print(mcp_call.name)"
+uv run python -c "from choreo.agents.tools.mcp_tool import mcp_call, mcp_describe; print(mcp_call.name, mcp_describe.name)"
 ```
 
-期望输出: `mcp_call`
+期望输出: `mcp_call mcp_describe`
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add backend/choreo/agents/tools/mcp_tool.py
-git commit -m "feat(mcp): add mcp_call proxy tool"
+git commit -m "feat(mcp): add mcp_call + mcp_describe proxy tools"
 ```
 
 ---
@@ -674,7 +782,7 @@ from choreo.agents.tools import (
     read_git_log, send_notification, read_file, write_file,
     edit_file, list_dir, grep, bash, skill_view,
 )
-from choreo.agents.tools.mcp_tool import mcp_call
+from choreo.agents.tools.mcp_tool import mcp_call, mcp_describe
 from choreo.agents.middlewares import (
     ModelCallLimitMiddleware, TitleMiddleware,
     ModelSelectorMiddleware, SkillsContextMiddleware,
@@ -691,7 +799,7 @@ def create_choreo_agent(checkpointer):
         tools=[
             read_git_log, send_notification, read_file, write_file,
             edit_file, list_dir, grep, bash, skill_view,
-            mcp_call,
+            mcp_call, mcp_describe,
         ],
         system_prompt=(
             "你是 Choreo，一个开发自动化 Agent。帮助用户把重复的开发杂活变成自动运行的脚本。\n"
@@ -703,6 +811,7 @@ def create_choreo_agent(checkpointer):
             "- send_notification：发送通知（需用户确认）\n"
             "- skill_view：读取技能库中某个技能（从 Available Skills 列表找 ID）\n"
             "- mcp_call：调用 MCP server 工具（从 Available MCP Tools 列表找 server/tool）\n"
+            "- mcp_describe：查询某个 MCP 工具的完整参数 schema（不确定参数类型时先查）\n"
             "\n"
             "修改文件前先用 read_file；执行 bash 和发送通知前必须等用户确认。"
         ),

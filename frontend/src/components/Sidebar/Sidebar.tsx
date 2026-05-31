@@ -5,8 +5,8 @@ import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { useTheme } from "@/hooks/useTheme";
 import { THREADS_KEY } from "@/hooks/useChat";
 
-const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000";
-const fetcher = (url: string) => fetch(`${API}${url}`).then((r) => r.json());
+import { apiFetch } from "@/lib/api";
+const fetcher = (url: string) => apiFetch(url).then((r) => r.json());
 
 type NavItem = {
   to: string;

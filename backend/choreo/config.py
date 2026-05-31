@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # Auth
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
+    BACKEND_URL: str = "http://localhost:8000"
     FRONTEND_URL: str = "http://localhost:5173"
 
     # GitHub OAuth

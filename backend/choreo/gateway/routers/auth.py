@@ -22,7 +22,7 @@ _pending_states: dict[str, str] = {}  # state -> provider
 
 
 def _redirect_uri(provider: str) -> str:
-    return f"http://localhost:8000/auth/{provider}/callback"
+    return f"{settings.BACKEND_URL}/auth/{provider}/callback"
 
 
 @router.get("/{provider}/login")
