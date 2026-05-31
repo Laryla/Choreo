@@ -92,6 +92,8 @@ export default function ChatInput({ onSend, disabled }: Props) {
     if (!hasContent || disabled) return;
 
     let messageText = text.trim();
+    const context: Record<string, unknown> = {};
+    if (selectedModel) context.model_name = selectedModel;
 
     if (slashSkill) {
       try {
@@ -100,21 +102,27 @@ export default function ChatInput({ onSend, disabled }: Props) {
           const skill: Skill = await res.json();
           const content = skill.content ?? "";
           const args = messageText;
+          let skillContent: string;
           if (content.includes("$ARGUMENTS")) {
-            messageText = content.replace(/\$ARGUMENTS/g, args);
+            skillContent = content.replace(/\$ARGUMENTS/g, args);
           } else {
-            messageText = args ? `${content}\n\n${args}` : content;
+            skillContent = content;
           }
+          context.skill_context = skillContent;
+          // messageText stays as the user's original input — do NOT overwrite it
         }
       } catch {
-        // fetch 失败则把参数作为普通消息发送
+        // fetch 失败则继续，不带 skill context
       }
     }
 
-    if (!messageText.trim()) return;
+    // skill selected but no user text — use skill name as a minimal trigger
+    if (!messageText.trim() && context.skill_context) {
+      messageText = `/${slashSkill!.id}`;
+    }
 
-    const context: Record<string, unknown> = {};
-    if (selectedModel) context.model_name = selectedModel;
+    if (!messageText.trim() && !context.skill_context) return;
+
     onSend(messageText, context);
     setText("");
     setSlashSkill(null);

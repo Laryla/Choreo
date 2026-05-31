@@ -77,6 +77,21 @@ async def _run_agent(
     sandbox_name = (context or {}).get("sandbox_name")
     await get_sandbox_manager().acquire(thread_id, sandbox_name)
 
+    # Extract skill_context (not passed to agent configurable)
+    skill_context = (context or {}).pop("skill_context", None) if context else None
+
+    # If present, prepend to last user message
+    if skill_context and inputs:
+        messages = inputs.get("messages", [])
+        if messages:
+            last_msg = messages[-1]
+            if isinstance(last_msg, dict) and last_msg.get("role") == "user":
+                original_content = last_msg.get("content", "") or ""
+                if original_content:
+                    last_msg["content"] = f"{skill_context}\n\n---\n\n{original_content}"
+                else:
+                    last_msg["content"] = skill_context
+
     config = {"configurable": {"thread_id": thread_id, **(context or {})}}
 
     if resume_decision is not None:
