@@ -9,7 +9,7 @@ _BUILTIN_SERVERS = [
         "name": "langchain-docs",
         "transport": "http",
         "url": "https://docs.langchain.com/mcp",
-        "enabled": True,
+        "enabled": False,   # 需要先确认端点可访问后手动启用
     },
 ]
 
