@@ -17,7 +17,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
   const [modelOpen, setModelOpen] = useState(false);
 
   // Slash command state
-  const [slashSkillId, setSlashSkillId] = useState<string | null>(null);
+  const [slashSkill, setSlashSkill] = useState<{id: string; category: string; name: string} | null>(null);
   const [dropdownIdx, setDropdownIdx] = useState(0);
 
   const modelDropdownRef = useRef<HTMLDivElement>(null);
@@ -25,7 +25,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
 
   const { data: models = [] } = useSWR<ModelInfo[]>("/models/", fetcher);
   const { data: activeData } = useSWR<{ active_model: string }>("/models/active", fetcher);
-  const { data: allSkills = [] } = useSWR<Skill[]>("/api/skills/?", fetcher);
+  const { data: allSkills = [] } = useSWR<Skill[]>("/api/skills/", fetcher);
 
   // 初始化默认模型
   useEffect(() => {
@@ -52,7 +52,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
 
   // 技能弹窗过滤逻辑：未在命令模式 且 以 "/" 开头
   const slashQuery =
-    slashSkillId === null && text.startsWith("/")
+    slashSkill === null && text.startsWith("/")
       ? text.slice(1).toLowerCase()
       : null;
 
@@ -72,7 +72,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
 
   // 选中技能，进入命令模式
   const selectSkill = useCallback((skill: Skill) => {
-    setSlashSkillId(skill.id);
+    setSlashSkill({ id: skill.id, category: skill.category, name: skill.name });
     setText("");
     setDropdownIdx(0);
     setTimeout(() => textareaRef.current?.focus(), 0);
@@ -80,22 +80,21 @@ export default function ChatInput({ onSend, disabled }: Props) {
 
   // 清除命令模式
   const clearSlashMode = useCallback(() => {
-    setSlashSkillId(null);
+    setSlashSkill(null);
     setText("");
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, []);
 
   // 发送（含展开逻辑）
   const handleSend = useCallback(async () => {
-    const hasContent = slashSkillId !== null || text.trim();
+    const hasContent = slashSkill !== null || text.trim();
     if (!hasContent || disabled) return;
 
     let messageText = text.trim();
 
-    if (slashSkillId) {
-      const [category, name] = slashSkillId.split("/");
+    if (slashSkill) {
       try {
-        const res = await fetch(`${API}/api/skills/${category}/${name}`);
+        const res = await fetch(`${API}/api/skills/${slashSkill.category}/${slashSkill.name}`);
         if (res.ok) {
           const skill: Skill = await res.json();
           const content = skill.content ?? "";
@@ -117,8 +116,8 @@ export default function ChatInput({ onSend, disabled }: Props) {
     if (selectedModel) context.model_name = selectedModel;
     onSend(messageText, context);
     setText("");
-    setSlashSkillId(null);
-  }, [slashSkillId, text, disabled, selectedModel, onSend]);
+    setSlashSkill(null);
+  }, [slashSkill, text, disabled, selectedModel, onSend]);
 
   const handleKey = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -156,7 +155,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
 
   const currentModel = models.find((m) => m.name === selectedModel);
   const displayLabel = currentModel?.display_name ?? currentModel?.name ?? selectedModel;
-  const canSend = !disabled && (slashSkillId !== null || !!text.trim());
+  const canSend = !disabled && (slashSkill !== null || !!text.trim());
 
   return (
     <div className="px-6 pb-4 pt-3">
@@ -227,10 +226,10 @@ export default function ChatInput({ onSend, disabled }: Props) {
           {/* 输入框主体 */}
           <div className="flex flex-col bg-white dark:bg-[#1a1a1a] border border-[#d6d0c7] dark:border-[#252525] rounded-[13px] px-3.5 py-2.5 shadow-sm dark:shadow-none">
             {/* 命令模式 chip */}
-            {slashSkillId && (
+            {slashSkill && (
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 text-[11px] font-mono text-blue-600 dark:text-blue-400 leading-none">
-                  /{slashSkillId}
+                  /{slashSkill.id}
                   <button
                     onClick={clearSlashMode}
                     className="ml-0.5 text-blue-400 dark:text-blue-600 hover:text-blue-600 dark:hover:text-blue-400 transition-colors leading-none"
@@ -250,7 +249,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={handleKey}
                 placeholder={
-                  slashSkillId
+                  slashSkill
                     ? "输入参数（可选）…"
                     : "描述你想自动化的任务，或输入 / 选择技能…"
                 }
