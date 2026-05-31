@@ -160,6 +160,20 @@ async def _run_agent(
         if state and state.status == "running":
             await thread_store.set_status(thread_id, "idle")
         await get_sandbox_manager().release(thread_id)
+
+        # Trigger background skill review (only on real user messages, not HITL resume)
+        review_started = False
+        if not isinstance(run_input, Command):
+            try:
+                from choreo.skills.review_worker import extract_invoked_skills, maybe_start_review
+                agent_state = await get_agent().aget_state(config)
+                final_messages = agent_state.values.get("messages", [])
+                invoked_skills = extract_invoked_skills(final_messages)
+                review_started = await maybe_start_review(thread_id, final_messages, invoked_skills)
+            except Exception:
+                pass  # Never crash SSE over review failure
+
+        await queue.put({"event": "updates", "data": {"__review_started__": review_started}})
         await queue.put(None)
 
 
