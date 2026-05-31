@@ -30,6 +30,13 @@ class ImportConfirmResponse(BaseModel):
     imported: list[str]
 
 
+@router.get("/review_log")
+async def get_review_log(limit: int = Query(default=5, ge=1, le=100)):
+    store = get_skill_store()
+    entries = await store.read_review_log(limit=limit)
+    return entries
+
+
 @router.get("/", response_model=list[Skill])
 async def list_skills(
     q: str | None = Query(default=None),
@@ -80,13 +87,6 @@ async def delete_skill(category: str, name: str):
     if skill.pinned:
         raise HTTPException(403, "skill is pinned — unpin before deleting")
     await store.delete(f"{category}/{name}")
-
-
-@router.get("/review_log")
-async def get_review_log(limit: int = Query(default=5, ge=1, le=100)):
-    store = get_skill_store()
-    entries = await store.read_review_log(limit=limit)
-    return entries
 
 
 @router.post("/import/preview", response_model=ImportPreviewResponse)
