@@ -25,10 +25,8 @@ export default function ReviewPanel() {
   const { current, submitDecision } = useReview();
   const [loading, setLoading] = useState(false);
 
-  if (!current) return null;
-
-  const action = current.action_requests[0];
-  const config = current.review_configs[0];
+  const action = current?.action_requests[0];
+  const config = current?.review_configs[0];
   const allowed = config?.allowed_decisions ?? ["approve", "reject"];
   const args = action?.args ?? {};
   const isMcpTool = action?.name?.includes(" · ");
@@ -38,7 +36,7 @@ export default function ReviewPanel() {
   const displayArgs = isMcpTool ? ((args as any).arguments ?? args) : args;
   const icon = isMcpTool
     ? (MCP_SERVER_ICONS[mcpServer] ?? "🔌")
-    : (TOOL_ICONS[action?.name] ?? "◆");
+    : (TOOL_ICONS[action?.name ?? ""] ?? "◆");
 
   const handle = async (type: Decision["type"]) => {
     setLoading(true);
@@ -47,6 +45,7 @@ export default function ReviewPanel() {
   };
 
   useEffect(() => {
+    if (!current) return;
     const onKey = (e: KeyboardEvent) => {
       if (loading) return;
       if (e.key === "y" && allowed.includes("approve")) handle("approve");
@@ -54,7 +53,9 @@ export default function ReviewPanel() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [loading, allowed]);
+  }, [current, loading, allowed]);
+
+  if (!current) return null;
 
   return (
     <div className="px-6 pb-3">

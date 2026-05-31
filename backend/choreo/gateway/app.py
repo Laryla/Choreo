@@ -11,11 +11,11 @@ from choreo.agents import create_choreo_agent, set_agent
 from choreo.sandbox import get_sandbox_manager, set_sandbox_manager, SandboxManager
 from choreo.skills import set_skill_store, LocalSkillStore
 from choreo.skills.bundled import sync_builtin_skills
+from choreo.skills.curator import SkillCurator
 from choreo.gateway.routers import threads, runs, tasks, history, models
 from choreo.gateway.routers import skills as skills_router
 from choreo.gateway.routers import mcp as mcp_router
 from choreo.mcp import McpManager, set_mcp_manager
-from choreo.mcp.builtin import seed_builtin_mcp_servers
 from choreo.gateway.routers import auth as auth_router
 from choreo.auth.deps import require_auth
 
@@ -31,13 +31,14 @@ async def lifespan(app: FastAPI):
     await sync_builtin_skills(_skill_store)
     set_skill_store(_skill_store)
 
+    # 0b. 启动技能库馆长（后台定期整合）
+    _curator = SkillCurator(_cfg.get("curator") or {})
+    _curator.start()
+
     # 1. 建表（幂等）
     await init_db()
 
-    # 2. Seed 内置 MCP 服务器（需在建表后执行）
-    await seed_builtin_mcp_servers()
-
-    # 3. 初始化 McpManager（连接失败不阻塞启动）
+    # 2. 初始化 McpManager（连接失败不阻塞启动）
     mcp_manager = McpManager()
     set_mcp_manager(mcp_manager)
     await mcp_manager.start()
@@ -56,6 +57,7 @@ async def lifespan(app: FastAPI):
         yield
 
     # 清理
+    _curator.stop()
     eviction_task.cancel()
     try:
         await eviction_task

@@ -1,7 +1,7 @@
 from langchain.agents import create_agent
 from choreo.model_factory import load_model
 from choreo.agents.tools import read_git_log, send_notification, read_file, write_file, edit_file, list_dir, grep, bash, skill_view
-from choreo.agents.tools.mcp_tool import mcp_call, mcp_call_auto, mcp_describe
+from choreo.agents.tools.mcp_tool import mcp_call, mcp_describe
 from choreo.agents.tools.skill_tool import skill_patch, skill_create
 from choreo.agents.middlewares import (
     ModelCallLimitMiddleware, TitleMiddleware,
@@ -22,7 +22,7 @@ def create_choreo_agent(checkpointer):
             read_git_log, send_notification, read_file, write_file,
             edit_file, list_dir, grep, bash, skill_view,
             skill_patch, skill_create,
-            mcp_call, mcp_call_auto, mcp_describe,
+            mcp_call, mcp_describe,
         ],
         system_prompt=(
             "你是 Choreo，一个开发自动化 Agent。帮助用户把重复的开发杂活变成自动运行的脚本。\n"

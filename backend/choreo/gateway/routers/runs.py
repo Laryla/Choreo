@@ -160,6 +160,18 @@ async def _run_agent(
                     "event": "tasks",
                     "data": _serialize(data),
                 })
+                # 新版 LangGraph HITL 中断走 tasks.interrupts 而非 updates.__interrupt__
+                # 同时发一个 updates.__interrupt__ 保证前端标准处理路径生效
+                if data.get("interrupts"):
+                    await thread_store.set_status(thread_id, "interrupted")
+                    interrupt_payload = [
+                        {"value": i.get("value", {}) if isinstance(i, dict) else {}}
+                        for i in data["interrupts"]
+                    ]
+                    await queue.put({
+                        "event": "updates",
+                        "data": {"__interrupt__": interrupt_payload},
+                    })
 
             # ── values: 每步执行后的完整 state 快照 ─────────────────
             elif chunk_type == "values":

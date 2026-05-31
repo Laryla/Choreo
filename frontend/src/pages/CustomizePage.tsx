@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import CustomizeNav from "@/components/Customize/CustomizeNav";
 import CustomizeSkillsPage from "./CustomizeSkillsPage";
 import CustomizeMcpPage from "./CustomizeMcpPage";
+import CustomizeCuratorPage from "./CustomizeCuratorPage";
 
 export default function CustomizePage() {
   return (
@@ -13,6 +14,7 @@ export default function CustomizePage() {
           <Route index element={<Navigate to="skills" replace />} />
           <Route path="skills" element={<CustomizeSkillsPage />} />
           <Route path="mcp" element={<CustomizeMcpPage />} />
+          <Route path="curator" element={<CustomizeCuratorPage />} />
         </Routes>
       </div>
     </div>

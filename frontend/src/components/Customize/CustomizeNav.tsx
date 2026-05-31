@@ -29,6 +29,18 @@ const ITEMS = [
     ),
     comingSoon: true,
   },
+  {
+    to: "/customize/curator",
+    label: "技能整理",
+    icon: (
+      <svg className="w-4 h-4 flex-shrink-0 opacity-70" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M8 2 L8 14" />
+        <path d="M4 6 L8 2 L12 6" />
+        <path d="M4 11 L8 7 L12 11" />
+      </svg>
+    ),
+    comingSoon: false,
+  },
 ];
 
 export default function CustomizeNav() {

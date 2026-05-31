@@ -34,6 +34,7 @@ async def skill_patch(
     content: str | None = None,
     description: str | None = None,
     tags: list[str] | None = None,
+    related_skills: list[str] | None = None,
 ) -> str:
     """Update an existing skill's content or metadata.
 
@@ -48,8 +49,9 @@ async def skill_patch(
     Args:
         skill_id: Skill ID in 'category/name' format
         content: New Markdown body (replaces existing body if provided)
-        description: New one-line description
+        description: New one-line description (≤80 chars)
         tags: New tag list (≤ 3 items, replaces existing)
+        related_skills: Skill IDs that complement this one (e.g. ['git/commit-message'])
 
     Returns:
         Success summary or rejection reason.
@@ -73,6 +75,7 @@ async def skill_patch(
         content=content,
         description=description,
         tags=tags,
+        related_skills=related_skills,
         last_reviewed_at=now,
         last_reviewed_by=thread_id,
     ))
@@ -87,6 +90,7 @@ async def skill_create(
     description: str,
     content: str,
     tags: list[str] | None = None,
+    related_skills: list[str] | None = None,
 ) -> str:
     """Create a new skill.
 
@@ -101,9 +105,15 @@ async def skill_create(
     Args:
         category: Lowercase category folder name (e.g. 'git', 'python', 'deploy')
         name: kebab-case skill name (e.g. 'weekly-report', 'venv-setup')
-        description: One sentence answering "Use when..." — required
-        content: Markdown body with steps, pitfalls, and verification
+        description: ≤80 chars answering "When to use" —
+            e.g. "Run Python projects with uv (install, add, run)."
+        content: Markdown body. Before writing, call skill_view on a similar
+            existing builtin skill and follow its structure as a template.
+            Don't invent a format from scratch. Keep under 15 KB.
+            No narrative prose — actionable content only.
         tags: Optional list of ≤ 3 tags
+        related_skills: Skill IDs that complement this one,
+            e.g. ['python/uv-project', 'debug/error-diagnosis']
 
     Returns:
         New skill ID + same-category sibling list for semantic dedup confirmation,
@@ -130,6 +140,7 @@ async def skill_create(
         content=content,
         tags=tags or [],
         source="ai_review",
+        related_skills=related_skills or [],
     ))
 
     await store.update(skill_id, SkillPatch(

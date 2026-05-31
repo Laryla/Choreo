@@ -146,3 +146,27 @@ export interface ReviewLogEntry {
 
 export const getReviewLog = (limit = 1): Promise<ReviewLogEntry[]> =>
   fetch(`${BASE}/review_log?limit=${limit}`).then((r) => r.json());
+
+export interface CuratorLogLine {
+  type: "phase" | "info" | "archive" | "merge" | "skip" | "llm" | "ok" | "done" | "error";
+  text: string;
+}
+
+export interface CuratorLogEntry {
+  ts: number;
+  archived: string[];
+  consolidated: string[];
+  lines: CuratorLogLine[];
+}
+
+export const runCurator = (): Promise<{ status: string }> =>
+  fetch(`${BASE}/curator/run`, { method: "POST" }).then((r) => {
+    if (!r.ok) throw new Error(`${r.status}`);
+    return r.json();
+  });
+
+export const getCuratorLog = (limit = 5): Promise<CuratorLogEntry[]> =>
+  fetch(`${BASE}/curator_log?limit=${limit}`).then((r) => r.json());
+
+export const getCuratorProgress = (): Promise<{ running: boolean; lines: CuratorLogLine[] }> =>
+  fetch(`${BASE}/curator/progress`).then((r) => r.json());

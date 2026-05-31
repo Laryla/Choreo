@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     )
 
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/choreo"
-    CHOREO_MAX_LLM_CALLS: int = 20
+    CHOREO_MAX_LLM_CALLS: int = 100
 
     @property
     def DATABASE_URL_PSYCOPG(self) -> str:

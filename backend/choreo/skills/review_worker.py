@@ -199,6 +199,23 @@ _REVIEW_SYSTEM_PROMPT = """\
 - 新建技能的 description 必须一句话回答"何时用这个技能"
 - category 用小写英文，name 用 kebab-case，tags ≤ 3 个
 
+## 技能内容格式
+
+新建技能前，必须先调用 skill_view 查看一个现有的同类技能（优先看 builtin 技能，
+如 git/weekly-report、python/uv-project、debug/error-diagnosis），以它的结构和风格为参照。
+不要凭空发明格式。
+
+description 规则：
+- ≤80 字符
+- 直接回答"何时用"，例如：
+  "Run Python projects with uv (install, add, run)."
+  "Diagnose errors by reading traceback bottom-up."
+
+related_skills：如果互补技能已存在，在 skill_create/skill_patch 时传入 related_skills 参数
+（如 ['git/commit-message', 'debug/error-diagnosis']）。
+
+不要用流水账叙述，不要写"这次发生了什么"，只写"下次怎么做"。
+
 ## 明确不写的情况
 
 - 内置技能（source=builtin）— 工具会拒绝

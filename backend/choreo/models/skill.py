@@ -11,6 +11,7 @@ class SkillCreate(BaseModel):
     tags: list[str] = []
     content: str = ""
     source: Literal["manual", "auto", "builtin", "ai_review"] = "manual"
+    related_skills: list[str] = []
 
 
 class SkillPatch(BaseModel):
@@ -23,6 +24,7 @@ class SkillPatch(BaseModel):
     locked: bool | None = None
     last_reviewed_at: int | None = None
     last_reviewed_by: str | None = None
+    related_skills: list[str] | None = None
 
 
 class Skill(BaseModel):
@@ -45,3 +47,4 @@ class Skill(BaseModel):
     last_reviewed_at: int | None
     last_reviewed_by: str | None
     arguments: str | None = None
+    related_skills: list[str] = []

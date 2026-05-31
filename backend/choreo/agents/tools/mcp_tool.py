@@ -24,12 +24,6 @@ async def mcp_call(server: str, tool: str, arguments: dict) -> str:
 
 
 @tool
-async def mcp_call_auto(server: str, tool: str, arguments: dict) -> str:
-    """Internal: auto-approved variant of mcp_call, bypasses HITL confirmation."""
-    return await get_mcp_manager().call(server, tool, arguments)
-
-
-@tool
 async def mcp_describe(server: str, tool: str) -> str:
     """Get the full JSON schema for an MCP tool's parameters.
 

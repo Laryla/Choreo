@@ -37,6 +37,75 @@ async def get_review_log(limit: int = Query(default=5, ge=1, le=100)):
     return entries
 
 
+@router.get("/curator/progress")
+async def get_curator_progress():
+    """Return lines written so far by the currently running curator cycle."""
+    import json
+    store = get_skill_store()
+    progress_path = store._root / ".curator_progress.jsonl"
+    if not progress_path.exists():
+        return {"running": False, "lines": []}
+    lines = []
+    for line in progress_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            try:
+                lines.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+    done = any(l.get("type") == "done" for l in lines)
+    return {"running": not done, "lines": lines}
+
+
+@router.get("/curator_log")
+async def get_curator_log(limit: int = Query(default=10, ge=1, le=50)):
+    """Return recent curator run logs."""
+    import json
+    store = get_skill_store()
+    log_path = store._root / ".curator_log.jsonl"
+    if not log_path.exists():
+        return []
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    tail = lines[-limit:] if limit < len(lines) else lines
+    result = []
+    for line in tail:
+        line = line.strip()
+        if line:
+            try:
+                result.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+    return result
+
+
+@router.post("/curator/run")
+async def trigger_curator():
+    """Manually trigger a curator cycle (runs in background)."""
+    import asyncio
+    from choreo.skills.curator import SkillCurator
+    import yaml
+    from pathlib import Path
+
+    cfg_path = Path(__file__).parent.parent.parent.parent / "config.yaml"
+    try:
+        with open(cfg_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        curator_cfg = cfg.get("curator") or {}
+    except Exception:
+        curator_cfg = {}
+
+    curator = SkillCurator(curator_cfg)
+
+    async def _run():
+        try:
+            await curator.run_once()
+        except Exception:
+            pass
+
+    asyncio.create_task(_run())
+    return {"status": "started"}
+
+
 @router.get("/", response_model=list[Skill])
 async def list_skills(
     q: str | None = Query(default=None),
