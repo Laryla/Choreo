@@ -20,6 +20,7 @@ export interface Skill {
   last_activity_at: number | null;
   last_reviewed_at: number | null;
   last_reviewed_by: string | null;
+  arguments?: string;
 }
 
 export interface SkillCreate {
