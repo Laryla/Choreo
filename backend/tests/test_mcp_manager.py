@@ -18,7 +18,7 @@ async def test_manager_reload_is_safe_when_no_servers(monkeypatch):
         return {}
     monkeypatch.setattr(McpManager, "_load_configs", _no_servers)
     await manager.reload()   # _load_configs 返回空，不应报错
-    assert manager._client is None
+    assert manager._configs == {}
 
 
 @pytest.mark.asyncio

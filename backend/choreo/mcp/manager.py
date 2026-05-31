@@ -2,47 +2,111 @@
 from __future__ import annotations
 import asyncio
 import logging
-from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain_core.tools import BaseTool
+from contextlib import asynccontextmanager
+
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+from mcp.client.stdio import stdio_client, StdioServerParameters
+from mcp.client.streamable_http import streamablehttp_client
+from mcp.types import TextContent, Tool
 
 logger = logging.getLogger(__name__)
 
 
-class McpManager:
-    """无状态 MCP 连接管理器。
+class McpProxyTool:
+    """轻量工具代理：存储工具元数据，ainvoke 时通过 McpManager 建新 session 调用。"""
 
-    MultiServerMCPClient 默认无状态——每次工具调用自动创建 session 并清理，
-    无需手动管理连接生命周期。
-    """
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        args_schema: dict | None,
+        server_name: str,
+        manager: "McpManager",
+    ) -> None:
+        self.name = name
+        self.description = description
+        self.args_schema = args_schema  # raw JSON Schema dict
+        self._server_name = server_name
+        self._manager = manager
+
+    async def ainvoke(self, arguments: dict) -> str:
+        return await self._manager.call(self._server_name, self.name, arguments)
+
+
+@asynccontextmanager
+async def _open_session(config: dict):
+    """按配置打开 MCP ClientSession，yield (session, init_result)，退出自动关闭。"""
+    transport = config["transport"]
+    if transport == "stdio":
+        params = StdioServerParameters(
+            command=config["command"],
+            args=config.get("args") or [],
+            env=config.get("env") or None,
+        )
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                init_result = await session.initialize()
+                yield session, init_result
+    elif transport == "sse":
+        async with sse_client(config["url"]) as (read, write):
+            async with ClientSession(read, write) as session:
+                init_result = await session.initialize()
+                yield session, init_result
+    elif transport in ("http", "streamable-http"):
+        async with streamablehttp_client(config["url"]) as (read, write, _):
+            async with ClientSession(read, write) as session:
+                init_result = await session.initialize()
+                yield session, init_result
+    else:
+        raise ValueError(f"Unsupported MCP transport: {transport}")
+
+
+def _tools_from_init(init_result) -> list[Tool]:
+    """从 initialize 响应的 capabilities.tools 里提取工具（非标准扩展字段）。"""
+    try:
+        tools_cap = init_result.capabilities.tools if init_result.capabilities else None
+        if not tools_cap:
+            return []
+        # Pydantic v2: 非标准字段存在 model_extra
+        extra = getattr(tools_cap, "model_extra", None) or {}
+        tools = []
+        for val in extra.values():
+            if isinstance(val, dict) and "name" in val:
+                tools.append(Tool(
+                    name=val["name"],
+                    description=val.get("description", ""),
+                    inputSchema=val.get("inputSchema", {"type": "object", "properties": {}}),
+                ))
+        return tools
+    except Exception as e:
+        logger.debug("Could not extract tools from init capabilities: %s", e)
+        return []
+
+
+class McpManager:
+    """无状态 MCP 连接管理器。每次工具调用按需打开 session，用完自动关闭。"""
 
     def __init__(self) -> None:
-        self._client: MultiServerMCPClient | None = None
-        # {server_name: {tool_name: BaseTool}}
-        self._tool_registry: dict[str, dict[str, BaseTool]] = {}
-        # {tool_name: server_name}，供 deny_interceptor 查 server
+        self._configs: dict[str, dict] = {}
+        self._tool_registry: dict[str, dict[str, McpProxyTool]] = {}
         self._tool_to_server: dict[str, str] = {}
 
     async def start(self) -> None:
-        """lifespan 启动时调用：构建 client，发现工具，同步 DB。"""
         configs = await self._load_configs()
         if not configs:
             logger.info("No enabled MCP servers, skipping McpManager init.")
             return
-        self._client = MultiServerMCPClient(
-            configs,
-            tool_interceptors=[self._make_deny_interceptor()],
-        )
+        self._configs = configs
         await self._discover_all(list(configs.keys()))
 
     async def reload(self) -> None:
-        """重新加载：从 DB 重读配置，重建 client 和工具注册表。"""
-        self._client = None
+        self._configs = {}
         self._tool_registry = {}
         self._tool_to_server = {}
         await self.start()
 
     def get_all_tools_info(self) -> dict[str, list[dict]]:
-        """返回已发现的工具信息，供 /api/mcp/tools 端点使用。"""
         return {
             server: [
                 {"name": name, "description": tool.description or ""}
@@ -52,7 +116,6 @@ class McpManager:
         }
 
     async def get_index(self) -> str:
-        """生成紧凑工具目录文字，过滤 approval=deny 和 enabled=false 的工具。"""
         from choreo.db import SessionLocal, McpServerRow
         from sqlalchemy import select
 
@@ -84,7 +147,6 @@ class McpManager:
         return "\n".join(lines) if len(lines) > 1 else ""
 
     async def get_schema(self, server: str, tool: str) -> dict | None:
-        """返回指定工具的完整 JSON schema，过滤 deny/disabled 工具，供 mcp_describe 使用。"""
         from choreo.db import SessionLocal, McpServerRow
 
         server_tools = self._tool_registry.get(server)
@@ -94,7 +156,6 @@ class McpManager:
         if not t or not t.args_schema:
             return None
 
-        # 过滤 deny/disabled，避免暴露被 block 工具的 schema
         try:
             async with SessionLocal() as session:
                 row = await session.get(McpServerRow, server)
@@ -103,21 +164,11 @@ class McpManager:
                     return None
         except Exception as e:
             logger.warning("DB error checking schema access for %s/%s: %s", server, tool, e)
-            return None  # fail-closed: don't expose schema on DB error
-
-        try:
-            if isinstance(t.args_schema, dict):
-                return t.args_schema  # langchain-mcp-adapters 直接存 JSON schema dict
-            try:
-                return t.args_schema.model_json_schema()  # pydantic v2
-            except AttributeError:
-                return t.args_schema.schema()             # pydantic v1 fallback
-        except Exception:
             return None
 
+        return t.args_schema
+
     async def call(self, server: str, tool: str, arguments: dict) -> str:
-        """通过注册表找到工具并调用，结果经过 deny_interceptor。"""
-        # Enforce deny policy before reaching ainvoke
         approval = await _get_approval(server, tool)
         if approval == "deny":
             return f"Tool '{server}/{tool}' is blocked by policy."
@@ -126,19 +177,28 @@ class McpManager:
         if server_tools is None:
             return f"MCP server '{server}' is not connected or has no tools."
 
-        target = server_tools.get(tool)
-        if target is None:
+        if tool not in server_tools:
             available = ", ".join(server_tools.keys())
             return f"Tool '{tool}' not found in '{server}'. Available: {available}"
 
+        config = self._configs.get(server)
+        if not config:
+            return f"No config found for MCP server '{server}'."
+
         try:
-            result = await target.ainvoke(arguments)
-            return str(result)
+            async with _open_session(config) as (session, _):
+                result = await session.call_tool(tool, arguments)
+                parts = []
+                for block in result.content:
+                    if isinstance(block, TextContent):
+                        parts.append(block.text)
+                    else:
+                        parts.append(str(block))
+                return "\n".join(parts) if parts else ""
         except Exception as e:
             return f"MCP tool call failed ({server}/{tool}): {e}"
 
     async def _load_configs(self) -> dict:
-        """从 DB 读取 enabled MCP servers，构建 MultiServerMCPClient 配置。"""
         from choreo.db import SessionLocal, McpServerRow
         from sqlalchemy import select
 
@@ -160,7 +220,7 @@ class McpManager:
                     "args": s.args or [],
                     "env": s.env or {},
                 }
-            elif s.transport in ("sse", "http"):
+            elif s.transport in ("sse", "http", "streamable-http"):
                 if not s.url:
                     logger.warning("MCP server '%s' has no url, skipping.", s.name)
                     continue
@@ -171,7 +231,6 @@ class McpManager:
         return configs
 
     async def _discover_all(self, server_names: list[str]) -> None:
-        """并发发现所有 server 的工具，超时 15s 跳过。"""
         tasks = [self._discover_one(name) for name in server_names]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for name, result in zip(server_names, results):
@@ -179,30 +238,52 @@ class McpManager:
                 logger.warning("Failed to discover tools for '%s': %s", name, result)
 
     async def _discover_one(self, server_name: str) -> None:
+        config = self._configs[server_name]
+
+        async def _fetch_tools():
+            async with _open_session(config) as (session, init_result):
+                try:
+                    # 先尝试标准 list_tools（10s 超时）
+                    result = await asyncio.wait_for(session.list_tools(), timeout=10.0)
+                    return result.tools
+                except asyncio.TimeoutError:
+                    # 服务器不走标准 list_tools，从 initialize 返回的 capabilities 提取
+                    logger.info(
+                        "list_tools timed out for '%s', extracting tools from init capabilities.",
+                        server_name,
+                    )
+                    return _tools_from_init(init_result)
+
         try:
-            tools: list[BaseTool] = await asyncio.wait_for(
-                self._client.get_tools(server_name=server_name),
-                timeout=15.0,
-            )
+            mcp_tools = await asyncio.wait_for(_fetch_tools(), timeout=20.0)
         except asyncio.TimeoutError:
-            logger.warning("Tool discovery for '%s' timed out (15s).", server_name)
+            logger.warning("Tool discovery for '%s' timed out (20s).", server_name)
             return
 
-        self._tool_registry[server_name] = {t.name: t for t in tools}
-        for t in tools:
+        proxy_tools = [
+            McpProxyTool(
+                name=t.name,
+                description=t.description or "",
+                args_schema=t.inputSchema if isinstance(t.inputSchema, dict) else None,
+                server_name=server_name,
+                manager=self,
+            )
+            for t in mcp_tools
+        ]
+
+        self._tool_registry[server_name] = {t.name: t for t in proxy_tools}
+        for t in proxy_tools:
             if t.name in self._tool_to_server:
                 logger.warning(
-                    "Tool name collision: '%s' exists in both '%s' and '%s'. "
-                    "deny_interceptor will use '%s'.",
-                    t.name, self._tool_to_server[t.name], server_name, server_name,
+                    "Tool name collision: '%s' in both '%s' and '%s'.",
+                    t.name, self._tool_to_server[t.name], server_name,
                 )
             self._tool_to_server[t.name] = server_name
 
-        logger.info("MCP server '%s': discovered %d tools.", server_name, len(tools))
-        await self._sync_to_db(server_name, tools)
+        logger.info("MCP server '%s': discovered %d tools.", server_name, len(proxy_tools))
+        await self._sync_to_db(server_name, proxy_tools)
 
-    async def _sync_to_db(self, server_name: str, tools: list[BaseTool]) -> None:
-        """将发现的工具同步到 DB tools_config，保留已有用户配置。"""
+    async def _sync_to_db(self, server_name: str, tools: list[McpProxyTool]) -> None:
         from choreo.db import SessionLocal, McpServerRow
 
         async with SessionLocal() as session:
@@ -213,7 +294,7 @@ class McpManager:
             new_config = {}
             for t in tools:
                 if t.name in existing:
-                    new_config[t.name] = existing[t.name]  # 保留用户配置
+                    new_config[t.name] = existing[t.name]
                 else:
                     new_config[t.name] = {"approval": "confirm", "enabled": True}
             row.tools_config = new_config
@@ -221,7 +302,6 @@ class McpManager:
 
     @staticmethod
     def _json_type_hint(prop: dict) -> str:
-        """Map a JSON Schema property dict to a compact type string."""
         t = prop.get("type", "")
         if t == "string":
             if "enum" in prop:
@@ -238,7 +318,6 @@ class McpManager:
             return f"list[{inner}]"
         if t == "object":
             return "dict"
-        # anyOf / oneOf fallback
         for key in ("anyOf", "oneOf"):
             variants = prop.get(key, [])
             non_null = [v for v in variants if v.get("type") != "null"]
@@ -246,18 +325,9 @@ class McpManager:
                 return McpManager._json_type_hint(non_null[0])
         return "any"
 
-    def _tool_signature(self, t: BaseTool) -> str:
-        """Build 'tool_name(param: type, optional?: type)' from tool schema."""
+    def _tool_signature(self, t: McpProxyTool) -> str:
         try:
-            if isinstance(t.args_schema, dict):
-                schema = t.args_schema  # langchain-mcp-adapters 直接存 JSON schema dict
-            elif t.args_schema:
-                try:
-                    schema = t.args_schema.model_json_schema()  # pydantic v2
-                except AttributeError:
-                    schema = t.args_schema.schema()             # pydantic v1 fallback
-            else:
-                schema = {}
+            schema = t.args_schema or {}
             required = set(schema.get("required", []))
             params = []
             for name, prop in schema.get("properties", {}).items():
@@ -270,29 +340,8 @@ class McpManager:
         except Exception:
             return t.name
 
-    def _make_deny_interceptor(self):
-        """返回在 MCP 层拦截 deny 工具的 interceptor 函数。"""
-        manager = self
-
-        async def deny_interceptor(request, handler):
-            tool_name = request.name
-            server_name = manager._tool_to_server.get(tool_name, "")
-            if server_name:
-                approval = await _get_approval(server_name, tool_name)
-                if approval == "deny":
-                    from langchain_core.messages import ToolMessage
-                    tool_call_id = getattr(request.runtime, "tool_call_id", "") or ""
-                    return ToolMessage(
-                        content=f"Tool '{server_name}/{tool_name}' is blocked by policy.",
-                        tool_call_id=tool_call_id,
-                    )
-            return await handler(request)
-
-        return deny_interceptor
-
 
 async def _get_approval(server: str, tool: str) -> str:
-    """从 DB 读取工具的 approval 配置，默认 confirm。"""
     from choreo.db import SessionLocal, McpServerRow
     try:
         async with SessionLocal() as session:
