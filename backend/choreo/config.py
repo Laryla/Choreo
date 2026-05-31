@@ -34,5 +34,18 @@ class Settings(BaseSettings):
     CHOREO_SANDBOX_TIMEOUT: int = 120
     CHOREO_SANDBOX_WORKDIR: str = "./sandbox"
 
+    # Auth
+    JWT_SECRET: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # GitHub OAuth
+    GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: str = ""
+
+    # 飞书 OAuth
+    FEISHU_APP_ID: str = ""
+    FEISHU_APP_SECRET: str = ""
+
 
 settings = Settings()

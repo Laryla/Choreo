@@ -25,6 +25,9 @@ dependencies = [
     "daytona>=0.182.0",
     "agent-sandbox>=0.0.30",
     "docker>=7.1.0",
+    "langchain-mcp-adapters>=0.2.2",
+    "authlib>=1.3",
+    "python-jose[cryptography]>=3.3",
 ]
 
 [project.optional-dependencies]
