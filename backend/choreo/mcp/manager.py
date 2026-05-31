@@ -106,9 +106,12 @@ class McpManager:
             return None  # fail-closed: don't expose schema on DB error
 
         try:
-            return t.args_schema.model_json_schema()  # pydantic v2
-        except AttributeError:
-            return t.args_schema.schema()             # pydantic v1 fallback
+            if isinstance(t.args_schema, dict):
+                return t.args_schema  # langchain-mcp-adapters 直接存 JSON schema dict
+            try:
+                return t.args_schema.model_json_schema()  # pydantic v2
+            except AttributeError:
+                return t.args_schema.schema()             # pydantic v1 fallback
         except Exception:
             return None
 
@@ -157,12 +160,14 @@ class McpManager:
                     "args": s.args or [],
                     "env": s.env or {},
                 }
-            elif s.transport in ("sse", "http"):
+            elif s.transport in ("sse", "http", "streamable_http"):
                 if not s.url:
                     logger.warning("MCP server '%s' has no url, skipping.", s.name)
                     continue
+                # langchain-mcp-adapters uses "streamable_http" for HTTP transport
+                transport = "streamable_http" if s.transport == "http" else s.transport
                 configs[s.name] = {
-                    "transport": s.transport,
+                    "transport": transport,
                     "url": s.url,
                 }
         return configs
@@ -246,7 +251,9 @@ class McpManager:
     def _tool_signature(self, t: BaseTool) -> str:
         """Build 'tool_name(param: type, optional?: type)' from tool schema."""
         try:
-            if t.args_schema:
+            if isinstance(t.args_schema, dict):
+                schema = t.args_schema  # langchain-mcp-adapters 直接存 JSON schema dict
+            elif t.args_schema:
                 try:
                     schema = t.args_schema.model_json_schema()  # pydantic v2
                 except AttributeError:

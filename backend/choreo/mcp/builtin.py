@@ -7,9 +7,9 @@ logger = logging.getLogger(__name__)
 _BUILTIN_SERVERS = [
     {
         "name": "langchain-docs",
-        "transport": "http",
+        "transport": "streamable_http",
         "url": "https://docs.langchain.com/mcp",
-        "enabled": False,   # 需要先确认端点可访问后手动启用
+        "enabled": True,
     },
 ]
 
@@ -34,4 +34,12 @@ async def seed_builtin_mcp_servers() -> None:
                 )
                 session.add(row)
                 logger.info("Seeded built-in MCP server: %s", server["name"])
+            else:
+                # 修正旧记录中错误的 transport 类型
+                if existing.transport != server["transport"]:
+                    existing.transport = server["transport"]
+                    logger.info(
+                        "Updated transport for '%s': %s → %s",
+                        server["name"], existing.transport, server["transport"],
+                    )
         await session.commit()
