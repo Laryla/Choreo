@@ -62,9 +62,17 @@ export default function SkillCard({ skill, selected, selectedFile, onSelect, onF
             <path d="M4 2l4 4-4 4" />
           </svg>
         </button>
-        <span className={`font-mono text-[12px] flex-1 truncate leading-snug
+        <span className={`font-mono text-[12px] flex-1 truncate leading-snug flex items-center gap-1
           ${selected ? "text-[#1e293b] dark:text-[#e8e8e8] font-semibold" : "text-[#444] dark:text-[#aaa]"}`}>
-          {skill.name}
+          <span className="truncate">{skill.name}</span>
+          {skill.last_reviewed_at && Date.now() / 1000 - skill.last_reviewed_at < 86400 && (
+            <span
+              title={`AI 于 ${Math.round((Date.now() / 1000 - skill.last_reviewed_at) / 60)} 分钟前更新`}
+              className="ml-1 inline-flex items-center px-1 py-0.5 rounded text-[9px] font-semibold bg-blue-100 dark:bg-blue-950/40 text-blue-500 dark:text-blue-400 leading-none flex-shrink-0"
+            >
+              ✦ AI
+            </span>
+          )}
         </span>
       </div>
 

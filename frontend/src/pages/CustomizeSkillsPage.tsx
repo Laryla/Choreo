@@ -6,8 +6,8 @@ import remarkGfm from "remark-gfm";
 import SkillCard from "@/components/Skills/SkillCard";
 import SkillEditor from "@/components/Skills/SkillEditor";
 import SkillImportModal from "@/components/Skills/SkillImportModal";
-import type { Skill, SkillPatch } from "@/api/skills";
-import { patchSkill, deleteSkill, readSkillFile } from "@/api/skills";
+import type { Skill, SkillPatch, ReviewLogEntry } from "@/api/skills";
+import { patchSkill, deleteSkill, readSkillFile, getReviewLog } from "@/api/skills";
 
 const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000";
 
@@ -67,6 +67,7 @@ export default function CustomizeSkillsPage() {
   const [viewMode, setViewMode] = useState<"preview" | "source">("preview");
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [lastReview, setLastReview] = useState<ReviewLogEntry | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: allSkills = [], mutate } = useSWR<Skill[]>(
@@ -86,6 +87,17 @@ export default function CustomizeSkillsPage() {
       .catch(() => setFileContent("（文件读取失败）"))
       .finally(() => setFileLoading(false));
   }, [selectedSkill?.id, selectedFile]);
+
+  useEffect(() => {
+    getReviewLog(1).then((entries) => {
+      const entry = entries[0] ?? null;
+      if (entry && (entry.updated.length > 0 || entry.created.length > 0)) {
+        setLastReview(entry);
+      } else {
+        setLastReview(null);
+      }
+    }).catch(() => {});
+  }, [allSkills]);
 
   const refresh = () =>
     mutate().then((updated) => {
@@ -179,6 +191,17 @@ export default function CustomizeSkillsPage() {
           </div>
         </div>
 
+        {/* Review summary */}
+        {lastReview && (
+          <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
+            <p className="text-[10.5px] text-blue-600 dark:text-blue-400">
+              上次对话
+              {lastReview.updated.length > 0 && ` 更新了 ${lastReview.updated.length} 个技能`}
+              {lastReview.created.length > 0 && ` · 新建了 ${lastReview.created.length} 个技能`}
+            </p>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto px-2 pb-4">
           {skills.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-[#bbb] dark:text-[#444] text-[12px] gap-1.5">
@@ -245,6 +268,39 @@ export default function CustomizeSkillsPage() {
               >
                 <span className={`inline-block h-[20px] w-[20px] transform rounded-full bg-white shadow-md transition-transform duration-200
                   ${isActive ? "translate-x-[22px]" : "translate-x-[3px]"}`} />
+              </button>
+              {/* Lock toggle */}
+              <button
+                onClick={() => {
+                  if (selectedSkill.source !== "builtin") {
+                    patch({ locked: !selectedSkill.locked });
+                  }
+                }}
+                disabled={busy || selectedSkill.source === "builtin"}
+                title={
+                  selectedSkill.source === "builtin"
+                    ? "内置技能不可解锁"
+                    : selectedSkill.locked
+                    ? "已锁定（AI 不可修改）— 点击解锁"
+                    : "未锁定 — 点击锁定"
+                }
+                className={`p-1.5 rounded-lg transition-colors disabled:opacity-40
+                  ${selectedSkill.locked || selectedSkill.source === "builtin"
+                    ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                    : "text-[#bbb] hover:text-[#666] hover:bg-[#e8e4dc] dark:hover:bg-[#1e1e1e]"
+                  }`}
+              >
+                {selectedSkill.locked || selectedSkill.source === "builtin" ? (
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <rect x="3" y="7" width="10" height="7" rx="1.5" />
+                    <path d="M5 7V5a3 3 0 016 0v2" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <rect x="3" y="7" width="10" height="7" rx="1.5" />
+                    <path d="M5 7V5a3 3 0 016 0" />
+                  </svg>
+                )}
               </button>
               <div className="relative">
                 <button
