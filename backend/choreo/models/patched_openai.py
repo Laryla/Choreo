@@ -155,10 +155,12 @@ def _append_reasoning(message: AIMessage | AIMessageChunk, reasoning: str) -> AI
 
 
 def _sanitize_orphan_tool_calls(messages: list[dict]) -> list[dict]:
-    """移除没有对应 ToolMessage 的孤儿 tool_calls，防止 OpenAI 400 错误。
+    """移除没有对应 ToolMessage 的孤儿 tool_calls，并过滤空 assistant 消息。
 
-    当 HITL 中断后 stream 断开、页面 reload 或其他异常导致
-    assistant 消息有 tool_calls 但后续缺少对应 tool 消息时触发。
+    两种情况会产生无效 assistant 消息：
+    1. tool_calls 全是孤儿（无对应 ToolMessage），移除后消息变为空壳
+    2. content="" 且无 tool_calls（流中断或 LangGraph 占位消息）
+    DeepSeek / OpenAI 对这两种情况都返回 400。
     """
     # 收集所有 tool 角色消息已响应的 tool_call_id
     responded_ids: set[str] = set()
@@ -170,19 +172,25 @@ def _sanitize_orphan_tool_calls(messages: list[dict]) -> list[dict]:
 
     result = []
     for msg in messages:
-        if msg.get("role") == "assistant" and msg.get("tool_calls"):
-            # 只保留有对应 ToolMessage 的 tool_calls
-            valid_calls = [
-                tc for tc in msg["tool_calls"]
-                if tc.get("id") in responded_ids
-            ]
-            if len(valid_calls) != len(msg["tool_calls"]):
-                # 有孤儿 tool_calls，修复这条消息
-                msg = dict(msg)
-                if valid_calls:
-                    msg["tool_calls"] = valid_calls
-                else:
-                    # 全部是孤儿：移除 tool_calls 字段
-                    msg.pop("tool_calls", None)
+        if msg.get("role") == "assistant":
+            if msg.get("tool_calls"):
+                # 只保留有对应 ToolMessage 的 tool_calls
+                valid_calls = [
+                    tc for tc in msg["tool_calls"]
+                    if tc.get("id") in responded_ids
+                ]
+                if len(valid_calls) != len(msg["tool_calls"]):
+                    msg = dict(msg)
+                    if valid_calls:
+                        msg["tool_calls"] = valid_calls
+                    else:
+                        msg.pop("tool_calls", None)
+
+            # 过滤空 assistant 消息（content 空且无 tool_calls）
+            content = msg.get("content") or ""
+            has_tool_calls = bool(msg.get("tool_calls"))
+            if not content and not has_tool_calls:
+                continue  # 直接丢弃，避免 API 400
+
         result.append(msg)
     return result

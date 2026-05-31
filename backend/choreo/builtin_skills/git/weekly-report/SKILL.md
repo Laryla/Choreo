@@ -6,7 +6,14 @@ tags:
 - git
 - report
 version: 1.0.0
+related_skills:
+- git/commit-message
 ---
+
+## Tool Decision
+
+- Have `read_git_log` tool available? → use it directly (preferred)
+- No tool access? → fall back to bash: `git log --since="7 days ago" --oneline`
 
 ## When to Use
 - User asks for weekly or periodic commit summaries

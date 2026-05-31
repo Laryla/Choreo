@@ -1,5 +1,5 @@
 // frontend/src/pages/CustomizeMcpPage.tsx
-import { useState, useRef } from "react";
+import { useState } from "react";
 import useSWR from "swr";
 import type { McpServer, McpServerCreate, McpServerPatch, ToolConfig } from "@/api/mcp";
 import { listServers, createServer, patchServer, deleteServer, reloadServers } from "@/api/mcp";
@@ -8,10 +8,11 @@ import { listServers, createServer, patchServer, deleteServer, reloadServers } f
 
 const PRESETS: Array<{
   name: string; icon: string; label: string; desc: string; official: boolean;
-  transport: "stdio"; command: string; args: string[]; env_keys: string[];
-  // arg_prompts: 需要追加到 args 末尾的参数（label + placeholder）
+  transport: "stdio" | "http"; command?: string; args?: string[]; env_keys: string[];
+  url?: string;
   arg_prompts?: Array<{ label: string; placeholder: string }>;
 }> = [
+  { name: "langchain-docs", icon: "🦜", label: "LangChain Docs", desc: "搜索 LangChain 官方文档、API 参考、示例代码", official: true, transport: "http", url: "https://docs.langchain.com/mcp", env_keys: [] },
   { name: "github", icon: "🐙", label: "GitHub", desc: "仓库、Issues、PR、Code Search", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-github"], env_keys: ["GITHUB_PERSONAL_ACCESS_TOKEN"] },
   { name: "postgres", icon: "🐘", label: "PostgreSQL", desc: "查询、Schema 管理、事务", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-postgres"], env_keys: [], arg_prompts: [{ label: "数据库连接串", placeholder: "postgresql://user:pass@localhost:5432/dbname" }] },
   { name: "filesystem", icon: "🗂️", label: "Filesystem", desc: "本地文件系统读写", official: true, transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem"], env_keys: [], arg_prompts: [{ label: "允许访问的目录", placeholder: "/Users/you/projects" }] },
@@ -124,8 +125,8 @@ function AddServerModal({ onClose, onCreated, installed }: AddModalProps) {
     if (preset.env_keys.length > 0 || preset.arg_prompts?.length) {
       setName(preset.name);
       setTransport(preset.transport);
-      setCommand(preset.command);
-      setArgs(preset.args);
+      setCommand(preset.command ?? "");
+      setArgs(preset.args ?? []);
       setEnvRows(preset.env_keys.length > 0 ? preset.env_keys.map((k) => [k, ""]) : [["", ""]]);
       setArgPrompts((preset.arg_prompts ?? []).map((p) => ({ ...p, value: "" })));
       setMode("form");
@@ -134,7 +135,7 @@ function AddServerModal({ onClose, onCreated, installed }: AddModalProps) {
     // 无需任何配置直接安装
     setBusy(true);
     try {
-      const created = await createServer({ name: preset.name, transport: preset.transport, command: preset.command, args: preset.args });
+      const created = await createServer({ name: preset.name, transport: preset.transport, command: preset.command, args: preset.args, url: preset.url });
       onCreated(created);
     } catch (e: any) {
       setError(e.message ?? "安装失败");
@@ -464,8 +465,12 @@ export default function CustomizeMcpPage() {
           {/* Header */}
           <div className="flex items-start justify-between px-8 pt-6 pb-3 flex-shrink-0">
             <div>
-              <h1 className="text-[18px] font-semibold text-[#1e293b] dark:text-[#e8e8e8] font-mono">{selected.name}</h1>
-              <p className="text-[11.5px] text-[#aaa] dark:text-[#555] mt-0.5 font-mono">{selected.command ?? selected.url}</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-[18px] font-semibold text-[#1e293b] dark:text-[#e8e8e8] font-mono">{selected.name}</h1>
+              </div>
+              <p className="text-[11.5px] text-[#aaa] dark:text-[#555] mt-0.5 font-mono">
+                {selected.command ?? selected.url}
+              </p>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               {/* Enable toggle */}
@@ -671,18 +676,21 @@ export default function CustomizeMcpPage() {
 
 function ServerListItem({ server, active, onClick }: { server: McpServer; active: boolean; onClick: () => void }) {
   const preset = PRESETS.find((p) => p.name === server.name);
+  const icon = preset?.icon ?? "🔌";
   return (
     <div onClick={onClick}
       className={`flex items-center gap-2.5 pl-2 pr-3 py-2.5 rounded-xl cursor-pointer select-none transition-colors relative
         ${active ? "bg-[#eae7e0] dark:bg-[#222]" : "hover:bg-[#f0ede6] dark:hover:bg-[#181818]"}`}>
       {active && <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-[#1e90ff]" />}
       <div className="w-7 h-7 rounded-lg border border-[#e5e1d8] dark:border-[#252525] bg-white dark:bg-[#1a1a1a] flex items-center justify-center text-sm flex-shrink-0">
-        {preset?.icon ?? "🔌"}
+        {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className={`font-mono text-[12px] font-semibold truncate ${!server.enabled ? "text-[#aaa] dark:text-[#555]" : "text-[#1e293b] dark:text-[#d0d0d0]"}`}>
-          {server.name}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className={`font-mono text-[12px] font-semibold truncate ${!server.enabled ? "text-[#aaa] dark:text-[#555]" : "text-[#1e293b] dark:text-[#d0d0d0]"}`}>
+            {server.name}
+          </p>
+        </div>
         <p className="text-[10.5px] text-[#bbb] dark:text-[#444] mt-0.5">
           {Object.keys(server.tools_config).length} 个工具
         </p>
