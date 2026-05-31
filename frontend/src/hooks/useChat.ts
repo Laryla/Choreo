@@ -5,6 +5,7 @@ import { useChatStore } from "@/store/chatStore";
 import { useReviewStore } from "@/store/reviewStore";
 
 export const THREADS_KEY = "/threads/";
+export const SKILLS_KEY = "/api/skills/?";
 
 export function useChat(initialThreadId?: string) {
   const threadIdRef = useRef<string | null>(initialThreadId ?? null);
@@ -40,6 +41,8 @@ export function useChat(initialThreadId?: string) {
         ...(context && Object.keys(context).length > 0 ? { context } : {}),
       } as any);
 
+      let reviewStarted = false;
+
       for await (const chunk of stream as any) {
         // ── LLM token 流 ─────────────────────────────────────────
         if (chunk.event === "messages") {
@@ -69,6 +72,12 @@ export function useChat(initialThreadId?: string) {
         // ── 节点状态更新 ─────────────────────────────────────────
         if (chunk.event === "updates") {
           const data = chunk.data ?? {};
+
+          // Skill review signal — consume and skip
+          if (data.__review_started__ !== undefined) {
+            if (data.__review_started__ === true) reviewStarted = true;
+            continue;
+          }
 
           // HITL 中断
           if (data.__interrupt__) {
@@ -112,6 +121,18 @@ export function useChat(initialThreadId?: string) {
           }
         }
 
+        // ── tasks 事件：McpApprovalMiddleware interrupt ──────────
+        if (chunk.event === "tasks") {
+          const task = chunk.data;
+          if (task?.interrupts?.length > 0) {
+            const interruptValue = task.interrupts[0]?.value;
+            if (interruptValue?.action_requests) {
+              openReview({ threadId: tid, ...interruptValue });
+              break;
+            }
+          }
+        }
+
         // ── 自定义进度事件（middleware 发出）──────────────────────
         if (chunk.event === "custom") {
           const status = chunk.data?.status ?? chunk.data?.message;
@@ -119,6 +140,10 @@ export function useChat(initialThreadId?: string) {
             addMessage({ role: "system", content: `⚙️ ${status}` });
           }
         }
+      }
+      if (reviewStarted) {
+        mutate(SKILLS_KEY);
+        setTimeout(() => mutate(SKILLS_KEY), 15_000);
       }
     } finally {
       finalizeToken();
