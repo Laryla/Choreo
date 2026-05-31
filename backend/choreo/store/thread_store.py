@@ -62,5 +62,33 @@ class ThreadStore:
             for r in rows
         ]
 
+    async def list_by_user(self, user_id: str) -> list[ThreadState]:
+        async with SessionLocal() as db:
+            result = await db.execute(
+                select(ThreadRow)
+                .where(ThreadRow.user_id == user_id)
+                .order_by(ThreadRow.created_at.desc())
+            )
+            rows = result.scalars().all()
+        return [
+            ThreadState(thread_id=r.thread_id, status=r.status, title=r.title)
+            for r in rows
+        ]
+
+    async def create_for_user(self, thread_id: str, user_id: str) -> None:
+        """Record thread ownership for an already-created thread."""
+        async with SessionLocal() as db:
+            existing = await db.get(ThreadRow, thread_id)
+            if existing:
+                existing.user_id = user_id
+            else:
+                db.add(ThreadRow(
+                    thread_id=thread_id,
+                    user_id=user_id,
+                    status="idle",
+                    created_at=int(__import__("time").time()),
+                ))
+            await db.commit()
+
 
 thread_store = ThreadStore()

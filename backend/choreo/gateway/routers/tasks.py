@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from choreo.models.task import Task, TaskCreate, TaskPatch
 from choreo.db import SessionLocal, TaskRow
+from choreo.auth.deps import get_current_user_id
 
 router = APIRouter()
 
@@ -24,14 +25,14 @@ def _row_to_task(row: TaskRow) -> Task:
 
 
 @router.get("/", response_model=list[Task])
-async def list_tasks(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(TaskRow))
+async def list_tasks(db: AsyncSession = Depends(get_db), user_id: str = Depends(get_current_user_id)):
+    result = await db.execute(select(TaskRow).where(TaskRow.user_id == user_id))
     return [_row_to_task(r) for r in result.scalars()]
 
 
 @router.post("/", response_model=Task, status_code=201)
-async def create_task(body: TaskCreate, db: AsyncSession = Depends(get_db)):
-    row = TaskRow(id=str(uuid.uuid4()), **body.model_dump())
+async def create_task(body: TaskCreate, db: AsyncSession = Depends(get_db), user_id: str = Depends(get_current_user_id)):
+    row = TaskRow(id=str(uuid.uuid4()), user_id=user_id, **body.model_dump())
     db.add(row)
     await db.commit()
     return _row_to_task(row)
