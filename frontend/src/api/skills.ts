@@ -10,13 +10,16 @@ export interface Skill {
   author: string;
   tags: string[];
   content: string;
-  source: "manual" | "auto" | "builtin";
+  source: "manual" | "auto" | "builtin" | "ai_review";
   state: "active" | "stale" | "archived";
   pinned: boolean;
+  locked: boolean;
   use_count: number;
   view_count: number;
   patch_count: number;
   last_activity_at: number | null;
+  last_reviewed_at: number | null;
+  last_reviewed_by: string | null;
 }
 
 export interface SkillCreate {
@@ -36,6 +39,7 @@ export interface SkillPatch {
   content?: string;
   pinned?: boolean;
   state?: "active" | "archived";
+  locked?: boolean;
 }
 
 export const getSkills = (q?: string, state?: string): Promise<Skill[]> => {
@@ -131,3 +135,13 @@ export const confirmImport = (
     if (!r.ok) return r.json().then((e) => Promise.reject(new Error(e.detail ?? `${r.status}`)));
     return r.json();
   });
+
+export interface ReviewLogEntry {
+  thread_id: string;
+  ts: number;
+  updated: string[];
+  created: string[];
+}
+
+export const getReviewLog = (limit = 1): Promise<ReviewLogEntry[]> =>
+  fetch(`${BASE}/review_log?limit=${limit}`).then((r) => r.json());
