@@ -23,6 +23,8 @@
 
 active_model: deepseek-chat
 
+review_model: deepseek-chat   # 复盘使用的模型；不填则复用 active_model
+
 active_sandbox: local-dev
 
 skills_dir: ./skills          # 技能文件目录（内置+用户混合）
