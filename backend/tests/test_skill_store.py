@@ -214,3 +214,35 @@ async def test_update_last_reviewed_fields_persist(store):
     skill = await store.get("git/log")
     assert skill.last_reviewed_at == now
     assert skill.last_reviewed_by == "thread-abc"
+
+
+@pytest.mark.asyncio
+async def test_list_by_category(store):
+    await store.create(SkillCreate(category="git", name="log", description="Use when reading git history"))
+    await store.create(SkillCreate(category="git", name="commit", description="Use when committing"))
+    await store.create(SkillCreate(category="python", name="venv", description="Use when setting up venv"))
+    results = await store.list_by_category("git")
+    ids = [s.id for s in results]
+    assert "git/log" in ids
+    assert "git/commit" in ids
+    assert "python/venv" not in ids
+
+
+@pytest.mark.asyncio
+async def test_review_log_rolling(store):
+    for i in range(105):
+        await store.append_review_log({
+            "thread_id": f"t{i}", "ts": i,
+            "updated": [], "created": [],
+        })
+    entries = await store.read_review_log(limit=200)
+    assert len(entries) == 100  # capped at 100
+
+
+@pytest.mark.asyncio
+async def test_review_log_returns_last_n(store):
+    for i in range(5):
+        await store.append_review_log({"thread_id": f"t{i}", "ts": i, "updated": [], "created": []})
+    entries = await store.read_review_log(limit=2)
+    assert len(entries) == 2
+    assert entries[-1]["thread_id"] == "t4"

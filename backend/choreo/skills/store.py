@@ -272,6 +272,45 @@ class LocalSkillStore:
             entry["last_activity_at"] = int(time.time())
             await self._write_usage(usage)
 
+    @property
+    def _review_log_path(self) -> Path:
+        return self._root / ".review_log.jsonl"
+
+    async def list_by_category(self, category: str) -> list[Skill]:
+        """Return all active skills in a given category (for skill_create dedup)."""
+        all_skills = await self.list_active()
+        return [s for s in all_skills if s.category == category]
+
+    async def append_review_log(self, entry: dict) -> None:
+        """Append one review result, keeping at most 100 entries (rolling)."""
+        def _write() -> None:
+            lines: list[str] = []
+            if self._review_log_path.exists():
+                lines = self._review_log_path.read_text(encoding="utf-8").splitlines()
+            lines.append(json.dumps(entry, ensure_ascii=False))
+            if len(lines) > 100:
+                lines = lines[-100:]
+            self._review_log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        await asyncio.to_thread(_write)
+
+    async def read_review_log(self, limit: int = 10) -> list[dict]:
+        """Return last `limit` review log entries."""
+        def _read() -> list[dict]:
+            if not self._review_log_path.exists():
+                return []
+            lines = self._review_log_path.read_text(encoding="utf-8").splitlines()
+            tail = lines[-limit:] if limit < len(lines) else lines
+            result = []
+            for line in tail:
+                line = line.strip()
+                if line:
+                    try:
+                        result.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+            return result
+        return await asyncio.to_thread(_read)
+
     async def delete(self, skill_id: str) -> None:
         parts = skill_id.split("/", 1)
         if len(parts) != 2:
