@@ -22,6 +22,10 @@ backend/sandbox/
 # skill
 backend/skills
 
+# Debug / temp test scripts
+backend/tests/debug_*.py
+frontend/curator-panel-preview.html
+
 # Claude Code / Superpowers
 .superpowers/
 docs/superpowers/
