@@ -61,8 +61,13 @@ async def get_skill(category: str, name: str):
 @router.patch("/{category}/{name}", response_model=Skill)
 async def patch_skill(category: str, name: str, body: SkillPatch):
     store = get_skill_store()
-    if not await store.get(f"{category}/{name}"):
+    skill = await store.get(f"{category}/{name}")
+    if not skill:
         raise HTTPException(404, "skill not found")
+    if skill.source == "builtin" and body.content is not None:
+        raise HTTPException(403, "内置技能内容不可修改")
+    if skill.locked and body.content is not None:
+        raise HTTPException(403, "技能已锁定，无法修改内容")
     return await store.update(f"{category}/{name}", body)
 
 
@@ -75,6 +80,13 @@ async def delete_skill(category: str, name: str):
     if skill.pinned:
         raise HTTPException(403, "skill is pinned — unpin before deleting")
     await store.delete(f"{category}/{name}")
+
+
+@router.get("/review_log")
+async def get_review_log(limit: int = Query(default=5, ge=1, le=100)):
+    store = get_skill_store()
+    entries = await store.read_review_log(limit=limit)
+    return entries
 
 
 @router.post("/import/preview", response_model=ImportPreviewResponse)
