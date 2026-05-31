@@ -15,6 +15,7 @@ from choreo.gateway.routers import threads, runs, tasks, history, models
 from choreo.gateway.routers import skills as skills_router
 from choreo.gateway.routers import mcp as mcp_router
 from choreo.mcp import McpManager, set_mcp_manager
+from choreo.mcp.builtin import seed_builtin_mcp_servers
 from choreo.gateway.routers import auth as auth_router
 from choreo.auth.deps import require_auth
 
@@ -37,6 +38,10 @@ async def lifespan(app: FastAPI):
 
     # 1. 建表（幂等）
     await init_db()
+
+    # 预置内置 MCP servers，重载 manager 以连接新增 server
+    await seed_builtin_mcp_servers()
+    await mcp_manager.reload()
 
     # 2. 初始化 SandboxManager
     manager = SandboxManager()
