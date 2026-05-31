@@ -86,13 +86,13 @@ class LocalSkillStore:
             source=u["source"],
             state=u["state"],
             pinned=bool(u["pinned"]),
-            locked=bool(u.get("locked", False)),
+            locked=bool(u["locked"]),
             use_count=int(u["use_count"]),
             view_count=int(u["view_count"]),
             patch_count=int(u["patch_count"]),
             last_activity_at=u["last_activity_at"],
-            last_reviewed_at=u.get("last_reviewed_at"),
-            last_reviewed_by=u.get("last_reviewed_by"),
+            last_reviewed_at=u["last_reviewed_at"],
+            last_reviewed_by=u["last_reviewed_by"],
         )
 
     async def list_active(self) -> list[Skill]:

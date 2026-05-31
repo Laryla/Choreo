@@ -182,3 +182,35 @@ async def test_source_ai_review_accepted(store):
         source="ai_review",
     ))
     assert skill.source == "ai_review"
+
+
+@pytest.mark.asyncio
+async def test_update_locked_persists(store):
+    await store.create(SkillCreate(
+        category="git", name="log", description="Use when reading git history"
+    ))
+    from choreo.models.skill import SkillPatch
+    await store.update("git/log", SkillPatch(locked=True))
+    skill = await store.get("git/log")
+    assert skill.locked is True
+    # Unlock
+    await store.update("git/log", SkillPatch(locked=False))
+    skill = await store.get("git/log")
+    assert skill.locked is False
+
+
+@pytest.mark.asyncio
+async def test_update_last_reviewed_fields_persist(store):
+    await store.create(SkillCreate(
+        category="git", name="log", description="Use when reading git history"
+    ))
+    from choreo.models.skill import SkillPatch
+    import time
+    now = int(time.time())
+    await store.update("git/log", SkillPatch(
+        last_reviewed_at=now,
+        last_reviewed_by="thread-abc",
+    ))
+    skill = await store.get("git/log")
+    assert skill.last_reviewed_at == now
+    assert skill.last_reviewed_by == "thread-abc"
