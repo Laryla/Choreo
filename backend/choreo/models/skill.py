@@ -44,3 +44,4 @@ class Skill(BaseModel):
     last_activity_at: int | None
     last_reviewed_at: int | None
     last_reviewed_by: str | None
+    arguments: str | None = None

@@ -246,3 +246,44 @@ async def test_review_log_returns_last_n(store):
     entries = await store.read_review_log(limit=2)
     assert len(entries) == 2
     assert entries[-1]["thread_id"] == "t4"
+
+
+@pytest.mark.asyncio
+async def test_arguments_field_parsed_from_frontmatter(store):
+    """arguments 字段从 SKILL.md frontmatter 读取，不写则为 None。"""
+    import yaml
+    from choreo.skills.store import _DEFAULT_USAGE
+
+    skill_dir = store._root / "git" / "weekly-report"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    fm = {
+        "description": "生成周报",
+        "version": "1.0.0",
+        "author": "user",
+        "tags": [],
+        "arguments": "时间范围，例如：本周",
+    }
+    body = "帮我生成周报，时间范围：$ARGUMENTS"
+    text = f"---\n{yaml.dump(fm, allow_unicode=True).rstrip()}\n---\n\n{body}"
+    (skill_dir / "SKILL.md").write_text(text, encoding="utf-8")
+
+    async with store._usage_lock:
+        usage = await store._read_usage()
+        usage["git/weekly-report"] = {**_DEFAULT_USAGE}
+        await store._write_usage(usage)
+
+    skill = await store.get("git/weekly-report")
+    assert skill is not None
+    assert skill.arguments == "时间范围，例如：本周"
+
+
+@pytest.mark.asyncio
+async def test_arguments_field_none_when_absent(store):
+    """arguments 字段不存在时返回 None。"""
+    await store.create(SkillCreate(
+        category="git", name="log",
+        description="Use when reading git history",
+    ))
+    skill = await store.get("git/log")
+    assert skill is not None
+    assert skill.arguments is None

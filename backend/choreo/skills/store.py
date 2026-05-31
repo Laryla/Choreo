@@ -93,6 +93,7 @@ class LocalSkillStore:
             last_activity_at=u["last_activity_at"],
             last_reviewed_at=u["last_reviewed_at"],
             last_reviewed_by=u["last_reviewed_by"],
+            arguments=fm.get("arguments") or None,
         )
 
     async def list_active(self) -> list[Skill]:
