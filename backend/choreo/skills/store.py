@@ -18,7 +18,10 @@ _DEFAULT_USAGE: dict[str, Any] = {
     "last_activity_at": None,
     "state": "active",
     "pinned": False,
+    "locked": False,
     "source": "manual",
+    "last_reviewed_at": None,
+    "last_reviewed_by": None,
 }
 
 
@@ -83,10 +86,13 @@ class LocalSkillStore:
             source=u["source"],
             state=u["state"],
             pinned=bool(u["pinned"]),
+            locked=bool(u.get("locked", False)),
             use_count=int(u["use_count"]),
             view_count=int(u["view_count"]),
             patch_count=int(u["patch_count"]),
             last_activity_at=u["last_activity_at"],
+            last_reviewed_at=u.get("last_reviewed_at"),
+            last_reviewed_by=u.get("last_reviewed_by"),
         )
 
     async def list_active(self) -> list[Skill]:
@@ -234,6 +240,12 @@ class LocalSkillStore:
                 entry["pinned"] = patch.pinned
             if patch.state is not None:
                 entry["state"] = patch.state
+            if patch.locked is not None:
+                entry["locked"] = patch.locked
+            if patch.last_reviewed_at is not None:
+                entry["last_reviewed_at"] = patch.last_reviewed_at
+            if patch.last_reviewed_by is not None:
+                entry["last_reviewed_by"] = patch.last_reviewed_by
             if patch.content is not None or patch.description is not None:
                 entry["patch_count"] = entry.get("patch_count", 0) + 1
             entry["last_activity_at"] = int(time.time())

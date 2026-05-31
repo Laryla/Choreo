@@ -155,3 +155,30 @@ async def test_sync_respects_user_modifications(store):
     await sync_builtin_skills(store)
     skill = await store.get("git/weekly-report")
     assert skill.content == "# My custom content"
+
+
+@pytest.mark.asyncio
+async def test_locked_field_defaults_false(store):
+    skill = await store.create(SkillCreate(
+        category="git", name="log", description="Use when reading git history"
+    ))
+    assert skill.locked == False
+
+
+@pytest.mark.asyncio
+async def test_last_reviewed_fields_default_none(store):
+    skill = await store.create(SkillCreate(
+        category="git", name="log", description="Use when reading git history"
+    ))
+    assert skill.last_reviewed_at is None
+    assert skill.last_reviewed_by is None
+
+
+@pytest.mark.asyncio
+async def test_source_ai_review_accepted(store):
+    skill = await store.create(SkillCreate(
+        category="ai", name="test-skill",
+        description="Use when testing",
+        source="ai_review",
+    ))
+    assert skill.source == "ai_review"

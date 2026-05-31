@@ -1,17 +1,16 @@
-# backend/choreo/models/skill.py
 from pydantic import BaseModel
 from typing import Literal
 
 
 class SkillCreate(BaseModel):
-    category: str                              # folder name, e.g. "git"
-    name: str                                  # folder name, e.g. "weekly-report"
-    description: str                           # starts with "Use when..."
+    category: str
+    name: str
+    description: str
     version: str = "1.0.0"
     author: str = "user"
     tags: list[str] = []
-    content: str = ""                          # Markdown body (no frontmatter)
-    source: Literal["manual", "auto", "builtin"] = "manual"
+    content: str = ""
+    source: Literal["manual", "auto", "builtin", "ai_review"] = "manual"
 
 
 class SkillPatch(BaseModel):
@@ -21,22 +20,27 @@ class SkillPatch(BaseModel):
     content: str | None = None
     pinned: bool | None = None
     state: Literal["active", "archived"] | None = None
+    locked: bool | None = None
+    last_reviewed_at: int | None = None
+    last_reviewed_by: str | None = None
 
 
 class Skill(BaseModel):
-    id: str                                    # "{category}/{name}"
+    id: str
     category: str
     name: str
     description: str
     version: str
     author: str
     tags: list[str]
-    content: str                               # Markdown body
-    # From .usage.json
-    source: Literal["manual", "auto", "builtin"]
+    content: str
+    source: Literal["manual", "auto", "builtin", "ai_review"]
     state: Literal["active", "stale", "archived"]
     pinned: bool
+    locked: bool
     use_count: int
     view_count: int
     patch_count: int
     last_activity_at: int | None
+    last_reviewed_at: int | None
+    last_reviewed_by: str | None
