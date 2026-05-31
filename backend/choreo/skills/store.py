@@ -223,13 +223,15 @@ class LocalSkillStore:
             raise FileNotFoundError(f"Skill not found: {skill_id}")
         parts = skill_id.split("/", 1)
         skill_dir = self._root / parts[0] / parts[1]
-        fm = {
+        fm: dict[str, Any] = {
             "name": skill.name,
             "description": patch.description if patch.description is not None else skill.description,
             "version": patch.version if patch.version is not None else skill.version,
             "author": skill.author,
             "tags": patch.tags if patch.tags is not None else skill.tags,
         }
+        if skill.arguments is not None:
+            fm["arguments"] = skill.arguments
         body = patch.content if patch.content is not None else skill.content
         await asyncio.to_thread(
             (skill_dir / "SKILL.md").write_text, _write_skill_md(fm, body), "utf-8"

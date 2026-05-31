@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, KeyboardEvent } from "react";
 import useSWR from "swr";
 import type { Skill } from "@/api/skills";
+import { SKILLS_KEY } from "@/hooks/useChat";
 
 const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000";
 const fetcher = (url: string) => fetch(`${API}${url}`).then((r) => r.json());
@@ -25,7 +26,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
 
   const { data: models = [] } = useSWR<ModelInfo[]>("/models/", fetcher);
   const { data: activeData } = useSWR<{ active_model: string }>("/models/active", fetcher);
-  const { data: allSkills = [] } = useSWR<Skill[]>("/api/skills/", fetcher);
+  const { data: allSkills = [] } = useSWR<Skill[]>(SKILLS_KEY, fetcher);
 
   // 初始化默认模型
   useEffect(() => {
