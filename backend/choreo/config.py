@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     # 飞书
     FEISHU_WEBHOOK_URL: str = ""
+    FEISHU_NOTIFY_CHAT_ID: str = ""  # 通知推送目标 chat_id（私聊或群聊）
 
     # SMTP
     SMTP_HOST: str = ""

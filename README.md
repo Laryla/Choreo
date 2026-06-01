@@ -120,6 +120,13 @@ LANGSMITH_API_KEY=          # 可选，用于 trace
 FEISHU_ENABLED=false
 FEISHU_APP_ID=
 FEISHU_APP_SECRET=
+FEISHU_NOTIFY_CHAT_ID=      # 可选，agent 主动推送通知的目标 chat_id
+
+# 邮件通知（可选）
+SMTP_HOST=smtp.qq.com       # QQ邮箱示例，163用 smtp.163.com
+SMTP_PORT=465
+SMTP_USER=yourname@qq.com
+SMTP_PASSWORD=              # 授权码，非登录密码
 ```
 
 ### 3. 启动后端
@@ -164,7 +171,22 @@ pnpm dev
 
 飞书对话支持所有 agent 能力，工具调用全部自动确认，无需手动审批。发送 `/new` 开启新对话。
 
-### 6. 启动沙箱（可选）
+> **通知推送**：配置 `FEISHU_NOTIFY_CHAT_ID` 后，agent 可主动向你的飞书私聊发通知（如定时任务完成、异常告警等）。首次与 Bot 对话后 chat_id 会自动记录到数据库，可通过 `SELECT chat_id FROM channels WHERE platform='feishu'` 查询。
+
+### 6. 配置邮件通知（可选）
+
+配置后 agent 可通过 `send_notification(channel="email")` 发邮件给你：
+
+```ini
+# backend/.env
+SMTP_HOST=smtp.qq.com       # QQ邮箱；163邮箱用 smtp.163.com
+SMTP_PORT=465
+SMTP_USER=yourname@qq.com
+SMTP_PASSWORD=xxxx          # 授权码（非登录密码）
+                             # QQ邮箱：设置 → 账户 → 开启SMTP → 生成授权码
+```
+
+### 7. 启动沙箱（可选）
 
 Choreo 使用 [AIO Sandbox](https://github.com/agent-infra/sandbox) 在隔离环境中执行代码：
 
