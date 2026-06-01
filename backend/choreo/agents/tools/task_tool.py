@@ -15,8 +15,14 @@ from langchain_core.tools import tool
 logger = logging.getLogger(__name__)
 
 
+_TOOLS_CACHE: list | None = None
+
+
 def _get_all_tools() -> list:
     """Build the full tool list without importing from choreo_agent (avoids circular import)."""
+    global _TOOLS_CACHE
+    if _TOOLS_CACHE is not None:
+        return _TOOLS_CACHE
     from choreo.agents.tools import (
         read_git_log, send_notification,
         read_file, write_file, edit_file, list_dir, grep, bash, skill_view,
@@ -25,13 +31,14 @@ def _get_all_tools() -> list:
     from choreo.agents.tools.mcp_tool import mcp_call, mcp_describe
     from choreo.agents.tools.web_tools import web_search, fetch_url
 
-    return [
+    _TOOLS_CACHE = [
         read_git_log, send_notification,
         read_file, write_file, edit_file, list_dir, grep, bash, skill_view,
         skill_patch, skill_create,
         mcp_call, mcp_describe,
         web_search, fetch_url,
     ]
+    return _TOOLS_CACHE
 
 
 @tool
@@ -64,10 +71,13 @@ async def task(subagent_type: str, description: str, prompt: str) -> str:
 
     try:
         stream_writer = get_stream_writer()
-    except Exception:
+    except RuntimeError:
         stream_writer = None
 
-    logger.info("task tool: dispatching to sub-agent[%s], thread=%s, task_id=%s", subagent_type, thread_id, task_id)
+    logger.info(
+        "task tool: dispatching %r to sub-agent[%s], thread=%s, task_id=%s",
+        description, subagent_type, thread_id, task_id,
+    )
 
     if stream_writer:
         stream_writer({
