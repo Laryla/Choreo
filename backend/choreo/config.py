@@ -48,5 +48,12 @@ class Settings(BaseSettings):
     FEISHU_APP_ID: str = ""
     FEISHU_APP_SECRET: str = ""
 
+    # 飞书 Bot（平台接入）
+    FEISHU_TRANSPORT: str = "websocket"          # websocket | webhook
+    FEISHU_ENCRYPT_KEY: str = ""                  # webhook 模式：加密 key
+    FEISHU_VERIFICATION_TOKEN: str = ""           # webhook 模式：校验 token
+    FEISHU_BOT_OPEN_ID: str = ""                  # 群聊 @mention 过滤用
+    FEISHU_ENABLED: bool = False                  # 显式开启才启动
+
 
 settings = Settings()

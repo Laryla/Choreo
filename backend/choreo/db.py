@@ -64,6 +64,26 @@ class UserRow(Base):
     )
 
 
+class ChannelRow(Base):
+    __tablename__ = "channels"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    platform: Mapped[str] = mapped_column(String, nullable=False)
+    chat_id: Mapped[str] = mapped_column(String, nullable=False)
+    thread_id: Mapped[str] = mapped_column(String, nullable=False)
+    user_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=lambda: int(time.time()))
+    updated_at: Mapped[int] = mapped_column(
+        BigInteger,
+        default=lambda: int(time.time()),
+        onupdate=lambda: int(time.time()),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("platform", "chat_id", name="uq_channel_platform_chat"),
+    )
+
+
 async def init_db():
     """启动时自动创建所有表（幂等，表已存在不会报错）"""
     async with engine.begin() as conn:
