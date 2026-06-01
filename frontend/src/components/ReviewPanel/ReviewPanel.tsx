@@ -24,9 +24,18 @@ const CODE_KEYS = new Set(["command", "content", "pattern", "old_string", "new_s
 export default function ReviewPanel() {
   const { current, submitDecision } = useReview();
   const [loading, setLoading] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [collected, setCollected] = useState<Decision[]>([]);
 
-  const action = current?.action_requests[0];
-  const config = current?.review_configs[0];
+  // Reset step state whenever a new interrupt arrives
+  useEffect(() => {
+    setStepIndex(0);
+    setCollected([]);
+  }, [current]);
+
+  const total = current?.action_requests.length ?? 0;
+  const action = current?.action_requests[stepIndex];
+  const config = current?.review_configs[stepIndex] ?? current?.review_configs[0];
   const allowed = config?.allowed_decisions ?? ["approve", "reject"];
   const args = action?.args ?? {};
   const isMcpTool = action?.name?.includes(" · ");
@@ -39,9 +48,17 @@ export default function ReviewPanel() {
     : (TOOL_ICONS[action?.name ?? ""] ?? "◆");
 
   const handle = async (type: Decision["type"]) => {
-    setLoading(true);
-    await submitDecision({ decisions: [{ type }] });
-    setLoading(false);
+    const next = [...collected, { type }];
+    if (stepIndex + 1 < total) {
+      // More tool calls to review — advance to next
+      setCollected(next);
+      setStepIndex(stepIndex + 1);
+    } else {
+      // All decisions collected — submit together
+      setLoading(true);
+      await submitDecision({ decisions: next });
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -53,7 +70,7 @@ export default function ReviewPanel() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [current, loading, allowed]);
+  }, [current, loading, allowed, stepIndex, collected]);
 
   if (!current) return null;
 
@@ -68,6 +85,9 @@ export default function ReviewPanel() {
             <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
             <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
             <span className="ml-2 text-[11px] text-[#555]">choreo — tool confirmation</span>
+            {total > 1 && (
+              <span className="ml-auto text-[11px] text-[#444]">{stepIndex + 1} / {total}</span>
+            )}
           </div>
 
           {/* 工具名行 */}

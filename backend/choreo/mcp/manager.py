@@ -296,7 +296,7 @@ class McpManager:
                 if t.name in existing:
                     new_config[t.name] = existing[t.name]
                 else:
-                    new_config[t.name] = {"approval": "confirm", "enabled": True}
+                    new_config[t.name] = {"approval": "auto", "enabled": True}
             row.tools_config = new_config
             await session.commit()
 

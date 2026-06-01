@@ -286,12 +286,13 @@ async def _run_curator_agent(skill_index: str) -> tuple[list[str], list[dict]]:
 
         tool_calls = getattr(msg, "tool_calls", None) or []
         if not tool_calls:
-            # Final AI summary (no tool calls) — capture as concise llm line
+            # Final AI summary (no tool calls) — emit each non-empty line separately
             content = getattr(msg, "content", "") or ""
             if isinstance(content, str) and content.strip():
-                # Truncate to first line or 200 chars to avoid dumping full skill content
-                first_line = content.strip().split("\n")[0][:200]
-                agent_lines.append({"type": "llm", "text": first_line})
+                for line in content.strip().splitlines():
+                    line = line.strip()
+                    if line:
+                        agent_lines.append({"type": "llm", "text": line[:300]})
             continue
 
         for tc in tool_calls:
