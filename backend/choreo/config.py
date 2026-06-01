@@ -55,5 +55,10 @@ class Settings(BaseSettings):
     FEISHU_BOT_OPEN_ID: str = ""                  # 群聊 @mention 过滤用
     FEISHU_ENABLED: bool = False                  # 显式开启才启动
 
+    # 钉钉 Bot（平台接入）
+    DINGTALK_CLIENT_ID: str = ""                  # 应用的 Client ID（AppKey）
+    DINGTALK_CLIENT_SECRET: str = ""              # 应用的 Client Secret（AppSecret）
+    DINGTALK_ENABLED: bool = False                # 显式开启才启动
+
 
 settings = Settings()
