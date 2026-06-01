@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 from typing import Any, Optional
 
 from choreo.platforms.base import BaseChatAdapter, MessageEvent, SendResult
@@ -35,7 +36,7 @@ class FeishuAdapter(BaseChatAdapter):
         self._transport = config.get("transport", "websocket")
         self._bot_open_id = settings.FEISHU_BOT_OPEN_ID
         self._ws_client: Any = None
-        self._ws_task: Optional[asyncio.Task] = None
+        self._ws_thread: Optional[threading.Thread] = None
         self._lark_client: Any = None
 
     def _build_lark_client(self) -> Any:
@@ -60,11 +61,8 @@ class FeishuAdapter(BaseChatAdapter):
                 self._ws_client.stop()
             except Exception:
                 pass
-        if self._ws_task is not None:
-            try:
-                await asyncio.wait_for(self._ws_task, timeout=5.0)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                self._ws_task.cancel()
+        if self._ws_thread is not None:
+            self._ws_thread.join(timeout=5.0)
 
     async def send(self, chat_id: str, text: str) -> SendResult:
         import lark_oapi as lark
@@ -186,9 +184,23 @@ class FeishuAdapter(BaseChatAdapter):
             event_handler=handler,
             log_level=lark.LogLevel.ERROR,
         )
-        self._ws_task = asyncio.create_task(
-            asyncio.to_thread(self._ws_client.start)
-        )
+        # ws.Client.start() calls loop.run_until_complete() internally.
+        # We must give it a fresh event loop in a new thread — otherwise it
+        # grabs uvloop's running loop and raises "event loop already running".
+        def _run() -> None:
+            import lark_oapi.ws.client as _ws_module
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            # lark_oapi caches the loop in a module-level variable;
+            # must patch it directly or it grabs uvloop's running loop
+            _ws_module.loop = new_loop
+            try:
+                self._ws_client.start()
+            except Exception:
+                pass
+
+        self._ws_thread = threading.Thread(target=_run, daemon=True, name="feishu-ws")
+        self._ws_thread.start()
         logger.info("[Feishu] WebSocket long-connection started")
 
 
