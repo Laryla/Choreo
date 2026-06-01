@@ -3,6 +3,7 @@ import { mutate } from "swr";
 import { client } from "@/lib/client";
 import { useChatStore } from "@/store/chatStore";
 import { useReviewStore } from "@/store/reviewStore";
+import type { SubAgentStep } from "@/store/chatStore";
 
 export const THREADS_KEY = "/threads/";
 export const SKILLS_KEY = "/api/skills/?";
@@ -17,7 +18,12 @@ export function useChat(initialThreadId?: string) {
     setCurrentThreadId(initialThreadId ?? null);
   }, [initialThreadId]);
 
-  const { addMessage, appendToken, appendThinking, finalizeToken } = useChatStore();
+  const { addMessage, appendToken, appendThinking, finalizeToken, upsertTaskStep, streamingMsgId } = useChatStore();
+
+  const streamingMsgIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    streamingMsgIdRef.current = streamingMsgId;
+  }, [streamingMsgId]);
   const { openReview } = useReviewStore();
 
   async function ensureThread(): Promise<string> {
@@ -135,7 +141,51 @@ export function useChat(initialThreadId?: string) {
 
         // ── 自定义进度事件（middleware 发出）──────────────────────
         if (chunk.event === "custom") {
-          const status = chunk.data?.status ?? chunk.data?.message;
+          const d = chunk.data as Record<string, unknown>;
+
+          if (d?.subagent_event) {
+            const evt = d.subagent_event as {
+              task_id: string;
+              subagent_type: string;
+              event_type: "start" | "tool_call" | "tool_result" | "done";
+              description?: string;
+              tool_name?: string;
+              tool_args?: Record<string, unknown>;
+              content?: string;
+            };
+            const msgId = streamingMsgIdRef.current;
+            if (msgId) {
+              if (evt.event_type === "start") {
+                upsertTaskStep(msgId, evt.task_id, {
+                  subagent_type: evt.subagent_type,
+                  description: evt.description,
+                  status: "running",
+                });
+              } else if (evt.event_type === "tool_call") {
+                upsertTaskStep(msgId, evt.task_id, {
+                  step: {
+                    event_type: "tool_call",
+                    tool_name: evt.tool_name,
+                    tool_args: evt.tool_args,
+                  } as SubAgentStep,
+                });
+              } else if (evt.event_type === "tool_result") {
+                upsertTaskStep(msgId, evt.task_id, {
+                  step: {
+                    event_type: "tool_result",
+                    tool_name: evt.tool_name,
+                    content: evt.content,
+                  } as SubAgentStep,
+                });
+              } else if (evt.event_type === "done") {
+                upsertTaskStep(msgId, evt.task_id, { status: "done" });
+              }
+            }
+            continue;
+          }
+
+          // original: progress status messages
+          const status = d?.status ?? d?.message;
           if (status) {
             addMessage({ role: "system", content: `⚙️ ${status}` });
           }
