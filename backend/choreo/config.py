@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     FEISHU_APP_ID: str = ""
     FEISHU_APP_SECRET: str = ""
 
+    # Web search（可选）
+    TAVILY_API_KEY: str = ""   # 设置后自动切换到 Tavily；需同时 uv add tavily-python
+
     # 飞书 Bot（平台接入）
     FEISHU_TRANSPORT: str = "websocket"          # websocket | webhook
     FEISHU_ENCRYPT_KEY: str = ""                  # webhook 模式：加密 key
