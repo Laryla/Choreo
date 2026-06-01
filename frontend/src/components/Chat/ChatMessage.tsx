@@ -244,13 +244,18 @@ interface TaskCardProps {
 function TaskCard({ toolCall, taskSteps, taskIndex }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false)
 
-  const allTaskSteps = Object.values(taskSteps ?? {})
-  const ts = allTaskSteps[taskIndex]
+  const subagentType = (toolCall.args?.subagent_type as string) ?? '?'
+  const description = (toolCall.args?.description as string) ?? ''
 
-  const subagentType = (toolCall.args?.subagent_type as string) ?? ts?.subagent_type ?? '?'
-  const description = (toolCall.args?.description as string) ?? ts?.description ?? ''
+  // Match by description if available, fall back to positional index
+  // This prevents mismatches when two task calls arrive out of order in one turn
+  const ts = description
+    ? (Object.values(taskSteps ?? {}).find(s => s.description === description) ?? Object.values(taskSteps ?? {})[taskIndex])
+    : Object.values(taskSteps ?? {})[taskIndex]
+
   const isRunning = !ts || ts.status === 'running'
   const stepCount = ts?.steps?.length ?? 0
+  const displayDescription = description || ts?.description || ''
 
   const typeConfig: Record<string, { badge: string; label: string; dot: string }> = {
     research: {
@@ -279,7 +284,7 @@ function TaskCard({ toolCall, taskSteps, taskIndex }: TaskCardProps) {
       >
         <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${cfg.badge}`}>子代理</span>
         <span className={`text-xs font-semibold ${cfg.label}`}>{subagentType}</span>
-        <span className="flex-1 text-sm text-violet-200/80 truncate">{description}</span>
+        <span className="flex-1 text-sm text-violet-200/80 truncate">{displayDescription}</span>
         {isRunning ? (
           <span className="flex items-center gap-1.5 text-amber-400 text-xs flex-shrink-0">
             <span className="inline-block w-3 h-3 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
