@@ -63,9 +63,7 @@ async def lifespan(app: FastAPI):
         app.state.channel_manager = _channel_manager
         if settings.FEISHU_ENABLED:
             import choreo.platforms.feishu  # noqa: F401 — triggers self-registration
-        if settings.DINGTALK_ENABLED:
-            import choreo.platforms.dingtalk  # noqa: F401 — triggers self-registration
-        if _platforms_cfg and (settings.FEISHU_ENABLED or settings.DINGTALK_ENABLED):
+        if _platforms_cfg and settings.FEISHU_ENABLED:
             _adapters = platform_registry.load_from_config(_platforms_cfg)
             for _adapter in _adapters:
                 _platform_name = _adapter._config.get("name", "unknown")
