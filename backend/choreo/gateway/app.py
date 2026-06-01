@@ -18,6 +18,8 @@ from choreo.gateway.routers import mcp as mcp_router
 from choreo.mcp import McpManager, set_mcp_manager
 from choreo.gateway.routers import auth as auth_router
 from choreo.auth.deps import require_auth
+from choreo.channel import ChannelManager, make_channel_router
+from choreo.platforms.registry import platform_registry
 
 
 @asynccontextmanager
@@ -54,7 +56,23 @@ async def lifespan(app: FastAPI):
     ) as checkpointer:
         await checkpointer.setup()       # 自动建 checkpoint_* 表
         set_agent(create_choreo_agent(checkpointer))
-        yield
+
+        # 6. 初始化 ChannelManager，连接聊天平台
+        _platforms_cfg = _cfg.get("platforms") or []
+        _channel_manager = ChannelManager()
+        app.state.channel_manager = _channel_manager
+        if _platforms_cfg and settings.FEISHU_ENABLED:
+            import choreo.platforms.feishu  # noqa: F401 — triggers self-registration
+            _adapters = platform_registry.load_from_config(_platforms_cfg)
+            for _adapter in _adapters:
+                _platform_name = _adapter._config.get("name", "unknown")
+                _channel_manager.register_adapter(_platform_name, _adapter)
+            await _channel_manager.start_all()
+
+        try:
+            yield
+        finally:
+            await _channel_manager.stop_all()
 
     # 清理
     _curator.stop()
@@ -85,3 +103,6 @@ app.include_router(history.router, prefix="/api/history", tags=["history"],  dep
 app.include_router(models.router,  prefix="/models",      tags=["models"],   dependencies=[Depends(require_auth)])
 app.include_router(skills_router.router, prefix="/api/skills", tags=["skills"], dependencies=[Depends(require_auth)])
 app.include_router(mcp_router.router,    prefix="/api/mcp",    tags=["mcp"],    dependencies=[Depends(require_auth)])
+
+# Channel webhook endpoints (no auth — Feishu validates via its own mechanism)
+app.include_router(make_channel_router())
