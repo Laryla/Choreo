@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from langchain_core.tools import BaseTool
 
@@ -40,7 +40,13 @@ class SubagentExecutor:
             config.name, len(self.tools), self.model_name,
         )
 
-    async def aexecute(self, task: str, thread_id: str) -> str:
+    async def aexecute(
+        self,
+        task: str,
+        thread_id: str,
+        task_id: str | None = None,
+        stream_writer: Callable[[Any], None] | None = None,
+    ) -> str:
         from langchain.agents import create_agent
         from choreo.model_factory import load_model
 
@@ -52,13 +58,55 @@ class SubagentExecutor:
         sub_thread_id = f"{self.config.name}-{thread_id}"
         logger.info("Sub-agent[%s] starting, thread=%s", self.config.name, sub_thread_id)
 
-        result = await agent.ainvoke(
+        should_emit = stream_writer is not None and task_id is not None
+        final_messages: list = []
+
+        async for event in agent.astream_events(
             {"messages": [{"role": "user", "content": task}]},
             config={"configurable": {"thread_id": sub_thread_id}},
-        )
+            version="v2",
+        ):
+            event_type = event.get("event", "")
 
-        messages = result.get("messages", [])
-        for msg in reversed(messages):
+            if event_type == "on_tool_start":
+                if should_emit:
+                    stream_writer({
+                        "subagent_event": {
+                            "task_id": task_id,
+                            "subagent_type": self.config.name,
+                            "event_type": "tool_call",
+                            "tool_name": event.get("name", ""),
+                            "tool_args": event.get("data", {}).get("input", {}),
+                        }
+                    })
+
+            elif event_type == "on_tool_end":
+                if should_emit:
+                    stream_writer({
+                        "subagent_event": {
+                            "task_id": task_id,
+                            "subagent_type": self.config.name,
+                            "event_type": "tool_result",
+                            "tool_name": event.get("name", ""),
+                            "content": str(event.get("data", {}).get("output", ""))[:500],
+                        }
+                    })
+
+            elif event_type == "on_chain_end" and event.get("name") == "LangGraph":
+                output = event.get("data", {}).get("output", {})
+                if isinstance(output, dict):
+                    final_messages = output.get("messages", [])
+
+        if should_emit:
+            stream_writer({
+                "subagent_event": {
+                    "task_id": task_id,
+                    "subagent_type": self.config.name,
+                    "event_type": "done",
+                }
+            })
+
+        for msg in reversed(final_messages):
             content = getattr(msg, "content", None)
             if content and not getattr(msg, "tool_calls", None):
                 if isinstance(content, str) and content.strip():
