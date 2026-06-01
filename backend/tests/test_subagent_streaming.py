@@ -33,8 +33,8 @@ async def test_aexecute_calls_stream_writer():
     mock_agent.astream_events = fake_astream_events
 
     from unittest.mock import patch
-    with patch("langchain.agents.create_agent", return_value=mock_agent), \
-         patch("choreo.model_factory.load_model", return_value=MagicMock()):
+    with patch("choreo.agents.sub_agents.executor.create_agent", return_value=mock_agent), \
+         patch("choreo.agents.sub_agents.executor.load_model", return_value=MagicMock()):
         executor = SubagentExecutor(config=config, all_tools=[], parent_model_name=None)
         result = await executor.aexecute(
             task="run echo hi",
@@ -48,6 +48,7 @@ async def test_aexecute_calls_stream_writer():
     assert tool_call_events[0]["subagent_event"]["tool_name"] == "bash"
     done_events = [e for e in written_events if e.get("subagent_event", {}).get("event_type") == "done"]
     assert len(done_events) == 1
+    assert result == "done"  # fake_msg.content = "done"
 
 
 @pytest.mark.asyncio
@@ -72,8 +73,8 @@ async def test_aexecute_without_stream_writer_works():
     mock_agent.astream_events = fake_astream_events
 
     from unittest.mock import patch
-    with patch("langchain.agents.create_agent", return_value=mock_agent), \
-         patch("choreo.model_factory.load_model", return_value=MagicMock()):
+    with patch("choreo.agents.sub_agents.executor.create_agent", return_value=mock_agent), \
+         patch("choreo.agents.sub_agents.executor.load_model", return_value=MagicMock()):
         executor = SubagentExecutor(config=config, all_tools=[], parent_model_name=None)
         result = await executor.aexecute(task="do something", thread_id="t1")
 
