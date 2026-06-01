@@ -8,6 +8,7 @@ tool set and system prompt; it cannot call task() recursively (disallowed_tools)
 from __future__ import annotations
 
 import logging
+import uuid
 
 from langchain_core.tools import tool
 
@@ -48,7 +49,7 @@ async def task(subagent_type: str, description: str, prompt: str) -> str:
     """
     from choreo.agents.sub_agents.registry import get_subagent_config, list_subagents
     from choreo.agents.sub_agents.executor import SubagentExecutor
-    from langgraph.config import get_config
+    from langgraph.config import get_config, get_stream_writer
 
     config = get_subagent_config(subagent_type)
     if config is None:
@@ -59,11 +60,33 @@ async def task(subagent_type: str, description: str, prompt: str) -> str:
     thread_id = (parent_config.get("configurable") or {}).get("thread_id", "unknown")
     model_name = (parent_config.get("configurable") or {}).get("model_name")
 
-    logger.info("task tool: dispatching to sub-agent[%s], thread=%s", subagent_type, thread_id)
+    task_id = str(uuid.uuid4())[:8]
+
+    try:
+        stream_writer = get_stream_writer()
+    except Exception:
+        stream_writer = None
+
+    logger.info("task tool: dispatching to sub-agent[%s], thread=%s, task_id=%s", subagent_type, thread_id, task_id)
+
+    if stream_writer:
+        stream_writer({
+            "subagent_event": {
+                "task_id": task_id,
+                "subagent_type": subagent_type,
+                "event_type": "start",
+                "description": description,
+            }
+        })
 
     executor = SubagentExecutor(
         config=config,
         all_tools=_get_all_tools(),
         parent_model_name=model_name,
     )
-    return await executor.aexecute(prompt, thread_id=thread_id)
+    return await executor.aexecute(
+        prompt,
+        thread_id=thread_id,
+        task_id=task_id,
+        stream_writer=stream_writer,
+    )
