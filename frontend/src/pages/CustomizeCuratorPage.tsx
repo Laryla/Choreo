@@ -155,11 +155,6 @@ export default function CustomizeCuratorPage() {
         ) : (
           <div className="font-mono text-[12px] space-y-0.5 max-w-[680px]">
             {lines
-              .filter((line) => {
-                // 过滤掉旧日志里存入的完整技能内容（llm 行超过 300 字符 → 跳过）
-                if (line.type === "llm" && line.text.length > 300) return false;
-                return true;
-              })
               .map((line, i) => (
                 <div key={i} className={`leading-5 ${LINE_STYLES[line.type] ?? "text-[#aaa]"}`}>
                   {line.text}

@@ -1,7 +1,7 @@
 // frontend/src/pages/CustomizeMcpPage.tsx
 import { useState } from "react";
 import useSWR from "swr";
-import type { McpServer, McpServerCreate, McpServerPatch, ToolConfig } from "@/api/mcp";
+import type { McpServer, McpServerCreate, McpServerPatch } from "@/api/mcp";
 import { listServers, createServer, patchServer, deleteServer, reloadServers } from "@/api/mcp";
 
 // ── Preset marketplace servers ────────────────────────────────────────────────
@@ -30,10 +30,6 @@ const ENV_PLACEHOLDERS: Record<string, string> = {
   SLACK_BOT_TOKEN: "xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx",
   SLACK_TEAM_ID: "T0XXXXXXXXX",
   NOTION_API_TOKEN: "secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-};
-
-const APPROVAL_LABELS: Record<string, string> = {
-  auto: "自动允许", confirm: "需要确认", deny: "禁用",
 };
 
 function buildJsonConfig(s: McpServer): string {
@@ -371,21 +367,6 @@ export default function CustomizeMcpPage() {
     }
   };
 
-  const patchTool = async (toolName: string, cfg: Partial<ToolConfig>) => {
-    if (!selected) return;
-    const current = selected.tools_config[toolName] ?? { approval: "confirm", enabled: true };
-    const updated: Record<string, ToolConfig> = {
-      ...selected.tools_config,
-      [toolName]: { ...current, ...cfg },
-    };
-    await patch({ tools_config: updated });
-  };
-
-  const addTool = async () => {
-    const name = prompt("工具名称（来自 MCP Server 的工具名）：");
-    if (!name?.trim()) return;
-    await patchTool(name.trim(), { approval: "confirm", enabled: true });
-  };
 
   const filtered = q
     ? servers.filter((s) => s.name.toLowerCase().includes(q.toLowerCase()))
@@ -559,11 +540,6 @@ export default function CustomizeMcpPage() {
                       </svg>
                       {discovering ? "发现中…" : "发现工具"}
                     </button>
-                    <button onClick={addTool}
-                      className="flex items-center gap-1.5 text-[11.5px] text-[#888] hover:text-[#333] dark:hover:text-[#ccc] transition-colors">
-                      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 2v12M2 8h12"/></svg>
-                      添加工具
-                    </button>
                   </div>
                 </div>
 
@@ -574,21 +550,10 @@ export default function CustomizeMcpPage() {
                     <p className="text-[11.5px]">点击「添加工具」手动输入工具名称</p>
                   </div>
                 ) : (
-                  toolEntries.map(([toolName, cfg]) => (
+                  toolEntries.map(([toolName]) => (
                     <div key={toolName}
-                      className={`flex items-center gap-4 px-8 py-4 border-b border-[#f0ede6] dark:border-[#1e1e1e] transition-colors hover:bg-[#faf9f7] dark:hover:bg-[#161616] ${!cfg.enabled ? "opacity-50" : ""}`}>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-mono text-[12.5px] font-semibold text-[#1e293b] dark:text-[#c8c8c8]">{toolName}</p>
-                      </div>
-                      <select
-                        value={cfg.approval}
-                        onChange={(e) => patchTool(toolName, { approval: e.target.value as ToolConfig["approval"] })}
-                        className="px-2 py-1 rounded-lg border border-[#e5e1d8] dark:border-[#252525] bg-white dark:bg-[#1a1a1a] text-[11.5px] text-[#555] dark:text-[#aaa] outline-none cursor-pointer">
-                        {Object.entries(APPROVAL_LABELS).map(([val, label]) => (
-                          <option key={val} value={val}>{label}</option>
-                        ))}
-                      </select>
-                      <Toggle on={cfg.enabled} onToggle={() => patchTool(toolName, { enabled: !cfg.enabled })} />
+                      className="flex items-center px-8 py-3.5 border-b border-[#f0ede6] dark:border-[#1e1e1e]">
+                      <p className="font-mono text-[12.5px] text-[#1e293b] dark:text-[#c8c8c8]">{toolName}</p>
                     </div>
                   ))
                 )}
