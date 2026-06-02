@@ -75,8 +75,8 @@ export const patchSkill = (
 export const deleteSkill = (category: string, name: string): Promise<void> =>
   fetch(`${BASE}/${category}/${name}`, { method: "DELETE" }).then(() => undefined);
 
-export const listSkillFiles = (category: string, name: string): Promise<string[]> =>
-  fetch(`${BASE}/${category}/${name}/files`).then((r) => r.json()).then((d) => d.files ?? []);
+export const listSkillFiles = (category: string, name: string, subdir?: string): Promise<string[]> =>
+  fetch(`${BASE}/${category}/${name}/files${subdir ? `?subdir=${encodeURIComponent(subdir)}` : ""}`).then((r) => r.json()).then((d) => d.files ?? []);
 
 export const readSkillFile = (
   category: string,

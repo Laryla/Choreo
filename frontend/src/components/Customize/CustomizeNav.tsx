@@ -41,6 +41,18 @@ const ITEMS = [
     ),
     comingSoon: false,
   },
+  {
+    to: "/customize/output",
+    label: "输出目录",
+    icon: (
+      <svg className="w-4 h-4 flex-shrink-0 opacity-70" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M2 11.5v1A1.5 1.5 0 003.5 14h9A1.5 1.5 0 0014 12.5v-1" />
+        <polyline points="8 2 8 10" />
+        <polyline points="5 7 8 10 11 7" />
+      </svg>
+    ),
+    comingSoon: false,
+  },
 ];
 
 export default function CustomizeNav() {

@@ -192,13 +192,29 @@ export default function CustomizeSkillsPage() {
         </div>
 
         {/* Review summary */}
-        {lastReview && (
-          <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
-            <p className="text-[10.5px] text-blue-600 dark:text-blue-400">
-              上次对话
-              {lastReview.updated.length > 0 && ` 更新了 ${lastReview.updated.length} 个技能`}
-              {lastReview.created.length > 0 && ` · 新建了 ${lastReview.created.length} 个技能`}
-            </p>
+        {lastReview && (lastReview.updated.length > 0 || lastReview.created.length > 0) && (
+          <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 flex flex-col gap-1">
+            <p className="text-[10px] text-blue-400 dark:text-blue-500 font-medium uppercase tracking-wide">上次对话</p>
+            {lastReview.created.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                <span className="text-[10.5px] text-blue-500 dark:text-blue-400 flex-shrink-0">新建</span>
+                {lastReview.created.map((name) => (
+                  <span key={name} className="text-[10.5px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded px-1.5 py-0.5 font-mono">
+                    {name}
+                  </span>
+                ))}
+              </div>
+            )}
+            {lastReview.updated.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                <span className="text-[10.5px] text-blue-500 dark:text-blue-400 flex-shrink-0">更新</span>
+                {lastReview.updated.map((name) => (
+                  <span key={name} className="text-[10.5px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded px-1.5 py-0.5 font-mono">
+                    {name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

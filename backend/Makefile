@@ -4,7 +4,7 @@ install:
 	uv sync
 
 dev:
-	uv run uvicorn choreo.api:app --reload --port 8009
+	uv run uvicorn choreo.gateway.app:app --reload --port 8009
 
 sync:
 	uv sync --extra dev

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     # 飞书
     FEISHU_WEBHOOK_URL: str = ""
+    FEISHU_NOTIFY_CHAT_ID: str = ""  # 通知推送目标 chat_id（私聊或群聊）
 
     # SMTP
     SMTP_HOST: str = ""
@@ -47,6 +48,9 @@ class Settings(BaseSettings):
     # 飞书 OAuth
     FEISHU_APP_ID: str = ""
     FEISHU_APP_SECRET: str = ""
+
+    # Web search（可选）
+    TAVILY_API_KEY: str = ""   # 设置后自动切换到 Tavily；需同时 uv add tavily-python
 
     # 飞书 Bot（平台接入）
     FEISHU_TRANSPORT: str = "websocket"          # websocket | webhook

@@ -9,6 +9,7 @@ from choreo.models.run import RunInput
 from choreo.agents import get_agent
 from choreo.store.thread_store import thread_store
 from choreo.agents.middlewares import pop_decision
+from choreo.sandbox import get_sandbox_manager
 
 router = APIRouter()
 
@@ -70,12 +71,8 @@ async def _run_agent(
     resume_decision: dict | None,
     context: dict | None = None,
 ):
-    from choreo.sandbox import get_sandbox_manager
     await queue.put({"event": "metadata", "data": {"run_id": run_id}})
     await thread_store.set_status(thread_id, "running")
-
-    sandbox_name = (context or {}).get("sandbox_name")
-    await get_sandbox_manager().acquire(thread_id, sandbox_name)
 
     # Extract skill_context (not passed to agent configurable)
     skill_context = (context or {}).pop("skill_context", None) if context else None

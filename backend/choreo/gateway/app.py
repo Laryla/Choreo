@@ -1,5 +1,22 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
+
+def _setup_logging() -> None:
+    try:
+        _cfg_path = Path(__file__).parents[3] / "config.yaml"
+        with open(_cfg_path) as _f:
+            import yaml as _y
+            _level_str = (_y.safe_load(_f) or {}).get("log_level", "INFO").upper()
+    except Exception:
+        _level_str = "INFO"
+    logging.basicConfig(
+        level=getattr(logging, _level_str, logging.INFO),
+        format="%(levelname)s %(name)s: %(message)s",
+    )
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+_setup_logging()
 from pathlib import Path
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +32,7 @@ from choreo.skills.curator import SkillCurator
 from choreo.gateway.routers import threads, runs, tasks, history, models
 from choreo.gateway.routers import skills as skills_router
 from choreo.gateway.routers import mcp as mcp_router
+from choreo.gateway.routers import output as output_router
 from choreo.mcp import McpManager, set_mcp_manager
 from choreo.gateway.routers import auth as auth_router
 from choreo.auth.deps import require_auth
@@ -104,6 +122,7 @@ app.include_router(history.router, prefix="/api/history", tags=["history"],  dep
 app.include_router(models.router,  prefix="/models",      tags=["models"],   dependencies=[Depends(require_auth)])
 app.include_router(skills_router.router, prefix="/api/skills", tags=["skills"], dependencies=[Depends(require_auth)])
 app.include_router(mcp_router.router,    prefix="/api/mcp",    tags=["mcp"],    dependencies=[Depends(require_auth)])
+app.include_router(output_router.router, prefix="/api",        tags=["output"])
 
 # Channel webhook endpoints (no auth — Feishu validates via its own mechanism)
 app.include_router(make_channel_router())

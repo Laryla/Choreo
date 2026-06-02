@@ -6,6 +6,7 @@ LocalSandbox - 本地文件系统沙箱实现。
 """
 
 import asyncio
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -26,10 +27,12 @@ class LocalSandbox(BaseSandbox):
         self,
         workspace_dir: str = "./sandbox",
         timeout: int = 120,
+        skills_dir: str | None = None,
         **_kwargs,
     ) -> None:
         self._workspace = Path(workspace_dir)
         self._default_timeout = timeout
+        self._skills_dir = Path(skills_dir).resolve() if skills_dir else None
         self._running = False
 
     # ── 路径安全 ──────────────────────────────────────────────────────
@@ -53,8 +56,12 @@ class LocalSandbox(BaseSandbox):
     # ── 生命周期 ──────────────────────────────────────────────────────
 
     async def start(self) -> None:
-        """创建 workspace 目录并标记为运行状态。"""
+        """创建 workspace 目录，软链 skills 目录，标记为运行状态。"""
         await asyncio.to_thread(self._workspace.mkdir, parents=True, exist_ok=True)
+        if self._skills_dir and self._skills_dir.exists():
+            link = self._workspace.resolve() / ".skills"
+            if not link.exists():
+                await asyncio.to_thread(link.symlink_to, self._skills_dir)
         self._running = True
 
     async def stop(self) -> None:
@@ -251,6 +258,8 @@ class LocalSandbox(BaseSandbox):
         """
         effective_timeout = min(timeout, self._default_timeout)
 
+        env = {**os.environ, "SKILLS_DIR": str(self._skills_dir)} if self._skills_dir else None
+
         def _run() -> str:
             try:
                 result = subprocess.run(
@@ -260,6 +269,7 @@ class LocalSandbox(BaseSandbox):
                     timeout=effective_timeout,
                     capture_output=True,
                     text=True,
+                    env=env,
                 )
                 return result.stdout if result.stdout else result.stderr
             except subprocess.TimeoutExpired as exc:

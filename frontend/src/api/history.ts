@@ -1,8 +1,18 @@
-export const getHistory = (page = 1, size = 20, taskId?: string) => {
-  const p = new URLSearchParams({ page: String(page), size: String(size) });
-  if (taskId) p.set("task_id", taskId);
-  return fetch(`/api/history?${p}`).then((r) => r.json());
-};
+const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8009";
 
-export const getOutput = (runId: string): Promise<string> =>
-  fetch(`/api/history/${runId}/output`).then((r) => r.text());
+export interface HistoryItem {
+  thread_id: string;
+  title: string;
+  status: string;
+  created_at: number;
+}
+
+export interface HistoryPage {
+  total: number;
+  page: number;
+  size: number;
+  items: HistoryItem[];
+}
+
+export const getHistory = (page = 1, size = 20): Promise<HistoryPage> =>
+  fetch(`${API}/api/history?page=${page}&size=${size}`).then((r) => r.json());

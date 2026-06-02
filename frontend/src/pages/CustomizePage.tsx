@@ -4,6 +4,7 @@ import CustomizeNav from "@/components/Customize/CustomizeNav";
 import CustomizeSkillsPage from "./CustomizeSkillsPage";
 import CustomizeMcpPage from "./CustomizeMcpPage";
 import CustomizeCuratorPage from "./CustomizeCuratorPage";
+import CustomizeOutputPage from "./CustomizeOutputPage";
 
 export default function CustomizePage() {
   return (
@@ -15,6 +16,7 @@ export default function CustomizePage() {
           <Route path="skills" element={<CustomizeSkillsPage />} />
           <Route path="mcp" element={<CustomizeMcpPage />} />
           <Route path="curator" element={<CustomizeCuratorPage />} />
+          <Route path="output" element={<CustomizeOutputPage />} />
         </Routes>
       </div>
     </div>

@@ -18,6 +18,86 @@ function FolderIcon() {
   );
 }
 
+function SubDirTree({
+  skill, dirPath, depth, selected, selectedFile, onSelect, onFileSelect,
+}: {
+  skill: Skill; dirPath: string; depth: number;
+  selected?: boolean; selectedFile?: string | null;
+  onSelect: (skill: Skill) => void; onFileSelect: (skill: Skill, file: string | null) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [files, setFiles] = useState<string[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const toggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!expanded && files === null) {
+      setLoading(true);
+      try {
+        const data = await listSkillFiles(skill.category, skill.name, dirPath);
+        setFiles(Array.isArray(data) ? data : []);
+      } catch {
+        setFiles([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    setExpanded((v) => !v);
+  };
+
+  const indent = `${(depth + 1) * 16}px`;
+  const label = dirPath.split("/").filter(Boolean).pop() + "/";
+
+  return (
+    <div>
+      <div
+        onClick={toggle}
+        className="flex items-center gap-1.5 py-1.5 rounded-lg cursor-pointer hover:bg-[#f0ede6] dark:hover:bg-[#181818] transition-colors"
+        style={{ paddingLeft: indent }}
+      >
+        <svg
+          className={`w-3 h-3 flex-shrink-0 text-[#bbb] transition-transform ${expanded ? "rotate-90" : ""}`}
+          viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"
+        >
+          <path d="M4 2l4 4-4 4" />
+        </svg>
+        <FolderIcon />
+        <span className="text-[11.5px] text-[#555] dark:text-[#888] truncate">{label}</span>
+      </div>
+      {expanded && (
+        loading ? (
+          <div className="text-[10.5px] text-[#bbb] py-1" style={{ paddingLeft: `calc(${indent} + 20px)` }}>加载中…</div>
+        ) : (
+          (files ?? []).map((f) => {
+            const fullPath = dirPath + f;
+            if (f.endsWith("/")) {
+              return (
+                <SubDirTree key={fullPath} skill={skill} dirPath={fullPath}
+                  depth={depth + 1} selected={selected} selectedFile={selectedFile}
+                  onSelect={onSelect} onFileSelect={onFileSelect} />
+              );
+            }
+            const isActive = selected && selectedFile === fullPath;
+            return (
+              <div
+                key={fullPath}
+                onClick={() => { onSelect(skill); onFileSelect(skill, fullPath); }}
+                className={`flex items-center py-1.5 rounded-lg cursor-pointer transition-colors
+                  ${isActive ? "bg-[#eae7e0] dark:bg-[#222]" : "hover:bg-[#f0ede6] dark:hover:bg-[#181818]"}`}
+                style={{ paddingLeft: `calc(${indent} + 20px)` }}
+              >
+                <span className={`text-[11.5px] truncate ${isActive ? "text-[#1e293b] dark:text-[#e8e8e8] font-medium" : "text-[#555] dark:text-[#888]"}`}>
+                  {f}
+                </span>
+              </div>
+            );
+          })
+        )
+      )}
+    </div>
+  );
+}
+
 export default function SkillCard({ skill, selected, selectedFile, onSelect, onFileSelect }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [files, setFiles] = useState<string[] | null>(null);
@@ -99,26 +179,25 @@ export default function SkillCard({ skill, selected, selectedFile, onSelect, onF
             <div className="px-3 py-1 text-[10.5px] text-[#bbb]">加载中…</div>
           ) : (
             (files ?? []).map((f) => {
-              const isDir = f.endsWith("/");
+              if (f.endsWith("/")) {
+                return (
+                  <SubDirTree key={f} skill={skill} dirPath={f} depth={0}
+                    selected={selected} selectedFile={selectedFile}
+                    onSelect={onSelect} onFileSelect={onFileSelect} />
+                );
+              }
               const isActive = selected && selectedFile === f;
               return (
                 <div
                   key={f}
-                  onClick={isDir ? undefined : () => { onSelect(skill); onFileSelect(skill, f); }}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors
-                    ${isDir ? "cursor-default" : "cursor-pointer"}
-                    ${isActive ? "bg-[#eae7e0] dark:bg-[#222]" : isDir ? "" : "hover:bg-[#f0ede6] dark:hover:bg-[#181818]"}`}
+                  onClick={() => { onSelect(skill); onFileSelect(skill, f); }}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors
+                    ${isActive ? "bg-[#eae7e0] dark:bg-[#222]" : "hover:bg-[#f0ede6] dark:hover:bg-[#181818]"}`}
                 >
-                  {isDir && <FolderIcon />}
                   <span className={`text-[11.5px] flex-1 truncate
                     ${isActive ? "text-[#1e293b] dark:text-[#e8e8e8] font-medium" : "text-[#555] dark:text-[#888]"}`}>
                     {f}
                   </span>
-                  {isDir && (
-                    <svg className="w-3 h-3 text-[#ccc] flex-shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8">
-                      <path d="M4 2l4 4-4 4" />
-                    </svg>
-                  )}
                 </div>
               );
             })

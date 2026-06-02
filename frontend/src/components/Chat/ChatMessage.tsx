@@ -2,7 +2,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import type { Message, ToolCall } from "@/store/chatStore";
+import type { Message, ToolCall, TaskSteps } from "@/store/chatStore";
 
 // ── Tool type registry ────────────────────────────────────────────────────────
 
@@ -233,6 +233,105 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
   );
 }
 
+// ── Task card (sub-agent execution) ──────────────────────────────────────────
+
+interface TaskCardProps {
+  toolCall: ToolCall
+  taskSteps?: Record<string, TaskSteps>
+  taskIndex: number
+}
+
+function TaskCard({ toolCall, taskSteps, taskIndex }: TaskCardProps) {
+  const [expanded, setExpanded] = useState(false)
+
+  const subagentType = (toolCall.args?.subagent_type as string) ?? '?'
+  const description = (toolCall.args?.description as string) ?? ''
+
+  // Match by description if available, fall back to positional index
+  // This prevents mismatches when two task calls arrive out of order in one turn
+  const ts = description
+    ? (Object.values(taskSteps ?? {}).find(s => s.description === description) ?? Object.values(taskSteps ?? {})[taskIndex])
+    : Object.values(taskSteps ?? {})[taskIndex]
+
+  const isRunning = !ts || ts.status === 'running'
+  const stepCount = ts?.steps?.length ?? 0
+  const displayDescription = description || ts?.description || ''
+
+  const typeConfig: Record<string, { badge: string; label: string; dot: string }> = {
+    research: {
+      badge: 'bg-violet-900/60 text-violet-300 border border-violet-700/40',
+      label: 'text-violet-400',
+      dot: 'bg-violet-400',
+    },
+    coder: {
+      badge: 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/40',
+      label: 'text-emerald-400',
+      dot: 'bg-emerald-400',
+    },
+    executor: {
+      badge: 'bg-rose-900/60 text-rose-300 border border-rose-700/40',
+      label: 'text-rose-400',
+      dot: 'bg-rose-400',
+    },
+  }
+  const cfg = typeConfig[subagentType] ?? typeConfig.research
+
+  return (
+    <div className="rounded-lg border border-violet-900/50 bg-[#0e0a1e] my-2 overflow-hidden">
+      <div
+        className="flex items-center gap-2 px-3 py-2 cursor-pointer bg-[#130d28] hover:bg-[#1a1235] select-none"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${cfg.badge}`}>子代理</span>
+        <span className={`text-xs font-semibold ${cfg.label}`}>{subagentType}</span>
+        <span className="flex-1 text-sm text-violet-200/80 truncate">{displayDescription}</span>
+        {isRunning ? (
+          <span className="flex items-center gap-1.5 text-amber-400 text-xs flex-shrink-0">
+            <span className="inline-block w-3 h-3 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+            运行中
+          </span>
+        ) : (
+          <span className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-emerald-400 text-xs">✓ 完成</span>
+            <span className="text-gray-500 text-[11px]">{stepCount} 步</span>
+          </span>
+        )}
+        <span className={`text-[10px] text-gray-500 transition-transform flex-shrink-0 ${expanded ? 'rotate-180' : ''}`}>▼</span>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-violet-900/50 bg-[#0a0718] p-2 space-y-1">
+          {(ts?.steps ?? []).map((step, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs px-2 py-0.5">
+              <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
+              {step.event_type === 'tool_call' ? (
+                <span className="text-gray-300">
+                  <span className="font-mono text-gray-400">{step.tool_name}</span>
+                  {step.tool_args && (
+                    <span className="text-gray-500 ml-2">
+                      {Object.values(step.tool_args).slice(0, 1).map(v => String(v).slice(0, 60)).join('')}
+                    </span>
+                  )}
+                </span>
+              ) : step.event_type === 'tool_result' ? (
+                <span className="text-gray-500 font-mono truncate">
+                  ↳ {step.content?.slice(0, 80)}
+                </span>
+              ) : null}
+            </div>
+          ))}
+          {isRunning && (
+            <div className="flex items-center gap-2 px-2 py-1 text-xs text-gray-500">
+              <span className="inline-block w-2.5 h-2.5 border border-gray-600 border-t-gray-400 rounded-full animate-spin" />
+              执行中…
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Tool result card ──────────────────────────────────────────────────────────
 
 function ToolResultCard({ message }: { message: Message }) {
@@ -361,9 +460,24 @@ export default function ChatMessage({ message }: Props) {
         {/* Tool calls */}
         {message.tool_calls && message.tool_calls.length > 0 && (
           <div className="mb-2">
-            {message.tool_calls.map((tc) => (
-              <ToolCallCard key={tc.id} toolCall={tc} />
-            ))}
+            {(() => {
+              let taskIndex = 0
+              return message.tool_calls!.map(tc => {
+                if (tc.name === 'task') {
+                  const card = (
+                    <TaskCard
+                      key={tc.id}
+                      toolCall={tc}
+                      taskSteps={message.taskSteps}
+                      taskIndex={taskIndex}
+                    />
+                  )
+                  taskIndex++
+                  return card
+                }
+                return <ToolCallCard key={tc.id} toolCall={tc} />
+              })
+            })()}
           </div>
         )}
 

@@ -23,7 +23,7 @@ def _get_lock(thread_id: str) -> asyncio.Lock:
 
 
 def extract_invoked_skills(messages: list) -> list[str]:
-    """Deterministically extract skill_view call arguments from LangGraph message history."""
+    """Deterministically extract skill read calls from LangGraph message history."""
     seen: list[str] = []
     for msg in messages:
         tool_calls: Any = None
@@ -43,7 +43,12 @@ def extract_invoked_skills(messages: list) -> list[str]:
                 name = getattr(tc, "name", None)
                 args = getattr(tc, "args", {})
 
-            if name != "skill_view":
+            # skill_manager(action="read") or legacy skill_view
+            if name == "skill_manager":
+                action = args.get("action") if isinstance(args, dict) else getattr(args, "action", None)
+                if action != "read":
+                    continue
+            elif name != "skill_view":
                 continue
 
             skill_id = args.get("skill_id") if isinstance(args, dict) else getattr(args, "skill_id", None)
@@ -142,11 +147,12 @@ def _extract_review_actions(messages: list) -> tuple[list[str], list[str]]:
             else:
                 name, args = getattr(tc, "name", None), getattr(tc, "args", {})
 
-            if name == "skill_patch":
+            action = args.get("action") if isinstance(args, dict) else getattr(args, "action", None)
+            if name in ("skill_patch",) or (name == "skill_manager" and action == "patch"):
                 sid = args.get("skill_id") if isinstance(args, dict) else getattr(args, "skill_id", None)
                 if sid and sid not in updated:
                     updated.append(sid)
-            elif name == "skill_create":
+            elif name in ("skill_create",) or (name == "skill_manager" and action == "create"):
                 cat = args.get("category") if isinstance(args, dict) else getattr(args, "category", None)
                 nm = args.get("name") if isinstance(args, dict) else getattr(args, "name", None)
                 if cat and nm:
@@ -229,7 +235,7 @@ related_skills：如果互补技能已存在，在 skill_create/skill_patch 时�
 async def _run_review(thread_id: str, messages: list, invoked_skills: list[str]) -> None:
     """Core review worker: runs a restricted stateless agent to update skills."""
     from langchain.agents import create_agent
-    from choreo.agents.tools.skill_tool import skill_view, skill_patch, skill_create
+    from choreo.agents.tools.skill_tool import skill_manager
 
     try:
         review_llm = _load_review_model()
@@ -240,7 +246,7 @@ async def _run_review(thread_id: str, messages: list, invoked_skills: list[str])
 
         review_agent = create_agent(
             model=review_llm,
-            tools=[skill_view, skill_patch, skill_create],
+            tools=[skill_manager],
             system_prompt=system_prompt,
         )
 
