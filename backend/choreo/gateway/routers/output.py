@@ -5,15 +5,12 @@ Reads directly from the host filesystem (sandbox/output/<thread_id>/).
 Does not require an active sandbox instance.
 """
 import mimetypes
-import re
 from pathlib import Path, PurePosixPath
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
 
 router = APIRouter()
-
-_PATH_RE = re.compile(r"^[\w\-. /]+$")
 
 
 def _get_output_root() -> Path:

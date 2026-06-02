@@ -15,6 +15,7 @@ from choreo.skills.curator import SkillCurator
 from choreo.gateway.routers import threads, runs, tasks, history, models
 from choreo.gateway.routers import skills as skills_router
 from choreo.gateway.routers import mcp as mcp_router
+from choreo.gateway.routers import output as output_router
 from choreo.mcp import McpManager, set_mcp_manager
 from choreo.gateway.routers import auth as auth_router
 from choreo.auth.deps import require_auth
@@ -104,6 +105,7 @@ app.include_router(history.router, prefix="/api/history", tags=["history"],  dep
 app.include_router(models.router,  prefix="/models",      tags=["models"],   dependencies=[Depends(require_auth)])
 app.include_router(skills_router.router, prefix="/api/skills", tags=["skills"], dependencies=[Depends(require_auth)])
 app.include_router(mcp_router.router,    prefix="/api/mcp",    tags=["mcp"],    dependencies=[Depends(require_auth)])
+app.include_router(output_router.router, prefix="/api",        tags=["output"])
 
 # Channel webhook endpoints (no auth — Feishu validates via its own mechanism)
 app.include_router(make_channel_router())
