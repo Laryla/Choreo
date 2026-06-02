@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api";
-import type { Task, TaskCreate } from "@/types/task";
+import type { Task, TaskCreate, TaskRun } from "@/types/task";
 
 const BASE = "/api/tasks";
 
@@ -22,3 +22,12 @@ export const patchTask = (id: string, body: { status: "active" | "paused" }): Pr
 
 export const deleteTask = (id: string): Promise<void> =>
   apiFetch(`${BASE}/${id}`, { method: "DELETE" }).then(() => undefined);
+
+export const getTaskRuns = (taskId: string): Promise<TaskRun[]> =>
+  apiFetch(`${BASE}/${taskId}/runs`).then((r) => r.json());
+
+export const getTaskRun = (taskId: string, runId: string): Promise<TaskRun> =>
+  apiFetch(`${BASE}/${taskId}/runs/${runId}`).then((r) => r.json());
+
+export const triggerTaskRun = (taskId: string): Promise<TaskRun> =>
+  apiFetch(`${BASE}/${taskId}/runs`, { method: "POST" }).then((r) => r.json());
