@@ -1,3 +1,4 @@
+import { useState } from "react";
 import useSWR from "swr";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -80,20 +81,23 @@ export default function FilePreview({
 }
 
 function ImagePreview({ src, name }: { src: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className="flex items-center justify-center h-full p-6">
+        <p className="text-[12px] text-[#e07b54]">图片加载失败</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center justify-center p-6 min-h-full">
       <img
         src={src}
         alt={name}
         className="max-w-full max-h-[70vh] object-contain rounded shadow"
-        onError={(e) => {
-          const img = e.target as HTMLImageElement;
-          img.style.display = "none";
-          const msg = document.createElement("p");
-          msg.textContent = "图片加载失败";
-          msg.className = "text-[12px] text-[#e07b54]";
-          img.parentElement?.appendChild(msg);
-        }}
+        onError={() => setFailed(true)}
       />
     </div>
   );
