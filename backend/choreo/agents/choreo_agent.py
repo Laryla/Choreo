@@ -4,6 +4,7 @@ from choreo.agents.tools import read_git_log, send_notification, read_file, writ
 from choreo.agents.tools.mcp_tool import mcp_call, mcp_describe
 from choreo.agents.tools.skill_tool import skill_manager
 from choreo.agents.tools.task_tool import task
+from choreo.agents.tools.scheduled_task_tool import create_scheduled_task, list_scheduled_tasks
 from choreo.agents.prompt import build_system_prompt
 from choreo.agents.middlewares import (
     ModelCallLimitMiddleware, TitleMiddleware,
@@ -60,6 +61,7 @@ def create_choreo_agent(checkpointer=None, headless: bool = False):
             read_git_log, send_notification, read_file, write_file,
             edit_file, list_dir, grep, bash, skill_manager,
             mcp_call, mcp_describe,
+            create_scheduled_task, list_scheduled_tasks,
         ],
         system_prompt=build_system_prompt(),
         middleware=[

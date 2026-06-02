@@ -25,6 +25,7 @@ import yaml as _yaml
 from choreo.db import init_db
 from choreo.config import settings
 from choreo.agents import create_choreo_agent, set_agent
+from choreo.agents.registry import set_scheduler
 from choreo.scheduler import TaskScheduler
 from choreo.sandbox import get_sandbox_manager, set_sandbox_manager, SandboxManager
 from choreo.skills import set_skill_store, LocalSkillStore
@@ -63,6 +64,7 @@ async def lifespan(app: FastAPI):
     task_scheduler = TaskScheduler()
     await task_scheduler.start()
     app.state.task_scheduler = task_scheduler
+    set_scheduler(task_scheduler)
 
     # 2. 初始化 McpManager（连接失败不阻塞启动）
     mcp_manager = McpManager()
