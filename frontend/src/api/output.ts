@@ -1,5 +1,7 @@
 import { apiFetch } from "@/lib/api";
 
+const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8009";
+
 export type OutputFile = {
   name: string;
   type: "file" | "dir";
@@ -20,11 +22,11 @@ export const listOutputFiles = (
 export const getFileUrl = (path: string, threadId = ""): string => {
   const params = new URLSearchParams({ path });
   if (threadId) params.set("thread_id", threadId);
-  return `/api/output/file?${params.toString()}`;
+  return `${API}/api/output/file?${params.toString()}`;
 };
 
 export const getRawUrl = (path: string, threadId = ""): string => {
   const params = new URLSearchParams({ path });
   if (threadId) params.set("thread_id", threadId);
-  return `/api/output/raw?${params.toString()}`;
+  return `${API}/api/output/raw?${params.toString()}`;
 };

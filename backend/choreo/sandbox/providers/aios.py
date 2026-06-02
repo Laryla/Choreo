@@ -10,10 +10,14 @@ AiosSandbox - 基于 AIO Sandbox (agent-infra) 的沙箱实现。
 """
 
 import asyncio
+import logging
 import time
+from pathlib import Path
 from typing import Any
 
 from choreo.sandbox.base import BaseSandbox
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_IMAGE = "enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox"
 _CONTAINER_PORT = 8080
@@ -41,6 +45,9 @@ class AiosSandbox(BaseSandbox):
         workspace_dir: str = "/home/user",
         timeout: int = 60,
         auto_start: bool = True,
+        skills_dir: str | None = None,
+        output_dir: str | None = None,
+        container_name: str | None = None,
         **_kwargs: Any,
     ) -> None:
         self._image = image
@@ -49,6 +56,9 @@ class AiosSandbox(BaseSandbox):
         self._workspace_dir = workspace_dir
         self._default_timeout = timeout
         self._auto_start = auto_start
+        self._skills_dir = Path(skills_dir).resolve() if skills_dir else None
+        self._output_dir = Path(output_dir).resolve() if output_dir else None
+        self._container_name = container_name
 
         self._container = None
         self._client = None  # AsyncSandbox instance
@@ -73,20 +83,66 @@ class AiosSandbox(BaseSandbox):
         except ImportError as exc:
             raise ImportError("请安装 docker: uv add docker") from exc
 
+        _container_name = self._container_name or "choreo-aios-sandbox"
+        logger.info("[sandbox] start requested: container=%s", _container_name)
+        _t0 = time.monotonic()
+
         def _start() -> str:
             client = docker.from_env()
+            # Reuse existing container if already running
+            try:
+                existing = client.containers.get(_container_name)
+                existing.reload()
+                if existing.status == "running":
+                    bindings = existing.ports.get(f"{_CONTAINER_PORT}/tcp") or []
+                    if bindings:
+                        logger.info("[sandbox] reusing running container: %s port=%s", _container_name, bindings[0]["HostPort"])
+                        self._container = existing
+                        return f"http://localhost:{bindings[0]['HostPort']}"
+                # Stopped but not removed — restart it
+                logger.info("[sandbox] restarting stopped container: %s", _container_name)
+                existing.start()
+                existing.reload()
+                self._container = existing
+                bindings = existing.ports.get(f"{_CONTAINER_PORT}/tcp") or []
+                if bindings:
+                    return f"http://localhost:{bindings[0]['HostPort']}"
+            except Exception:
+                pass  # Container doesn't exist, create it
+
+            logger.info("[sandbox] creating new container: %s image=%s", _container_name, self._image)
             port_binding = self._host_port or None
+            volumes: dict = {}
+            environment: dict = {}
+            # Mount outside /home/gem to avoid interfering with container init
+            if self._skills_dir and self._skills_dir.exists():
+                volumes[str(self._skills_dir)] = {"bind": "/choreo-skills", "mode": "ro"}
+                environment["SKILLS_DIR"] = "/choreo-skills"
+            if self._output_dir:
+                self._output_dir.mkdir(parents=True, exist_ok=True)
+                volumes[str(self._output_dir)] = {"bind": "/choreo-output", "mode": "rw"}
+                environment["OUTPUT_DIR"] = "/choreo-output"
             container = client.containers.run(
                 self._image,
+                name=_container_name,
                 detach=True,
-                remove=True,
                 security_opt=["seccomp=unconfined"],
                 ports={f"{_CONTAINER_PORT}/tcp": port_binding},
+                volumes=volumes or None,
+                environment=environment or None,
             )
             self._container = container
             for _ in range(20):
                 time.sleep(0.5)
-                container.reload()
+                try:
+                    container.reload()
+                except Exception:
+                    logs = ""
+                    try:
+                        logs = container.logs().decode("utf-8", errors="replace")[-500:]
+                    except Exception:
+                        pass
+                    raise RuntimeError(f"容器意外退出。最近日志：\n{logs}")
                 bindings = container.ports.get(f"{_CONTAINER_PORT}/tcp") or []
                 if bindings:
                     break
@@ -100,15 +156,26 @@ class AiosSandbox(BaseSandbox):
         from agent_sandbox import AsyncSandbox
         self._client = AsyncSandbox(base_url=base_url)
         await self._wait_ready()
+        elapsed = time.monotonic() - _t0
+        logger.info("[sandbox] ready: container=%s url=%s elapsed=%.1fs", _container_name, base_url, elapsed)
+        # Create symlinks inside workspace after init completes
+        if self._skills_dir:
+            await self.bash(f"ln -sfn /choreo-skills {self._workspace_dir}/.skills 2>/dev/null || true")
+        if self._output_dir:
+            await self.bash(f"mkdir -p /choreo-output && ln -sfn /choreo-output {self._workspace_dir}/output 2>/dev/null || true")
 
     async def stop(self) -> None:
         if self._container is not None:
+            logger.info("[sandbox] stopping container: %s", self._container.name)
             def _stop() -> None:
                 self._container.stop(timeout=5)
             await asyncio.to_thread(_stop)
+            logger.info("[sandbox] container stopped: %s", self._container.name)
 
     async def destroy(self) -> None:
         if self._container is not None:
+            name = self._container.name
+            logger.info("[sandbox] destroying container: %s", name)
             def _destroy() -> None:
                 try:
                     self._container.stop(timeout=5)
@@ -119,6 +186,7 @@ class AiosSandbox(BaseSandbox):
                 except Exception:
                     pass
             await asyncio.to_thread(_destroy)
+            logger.info("[sandbox] container destroyed: %s", name)
             self._container = None
         self._client = None
 

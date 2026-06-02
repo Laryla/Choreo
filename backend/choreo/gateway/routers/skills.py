@@ -234,11 +234,11 @@ async def import_confirm(body: ImportConfirmBody):
 
 
 @router.get("/{category}/{name}/files")
-async def list_skill_files(category: str, name: str):
+async def list_skill_files(category: str, name: str, subdir: str = ""):
     store = get_skill_store()
     if not await store.get(f"{category}/{name}"):
         raise HTTPException(404, "skill not found")
-    return {"files": await store.list_files(f"{category}/{name}")}
+    return {"files": await store.list_files(f"{category}/{name}", subdir)}
 
 
 @router.get("/{category}/{name}/files/{file_path:path}")

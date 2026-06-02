@@ -25,16 +25,15 @@ def _get_all_tools() -> list:
         return _TOOLS_CACHE
     from choreo.agents.tools import (
         read_git_log, send_notification,
-        read_file, write_file, edit_file, list_dir, grep, bash, skill_view,
+        read_file, write_file, edit_file, list_dir, grep, bash,
     )
-    from choreo.agents.tools.skill_tool import skill_patch, skill_create
+    from choreo.agents.tools.skill_tool import skill_manager
     from choreo.agents.tools.mcp_tool import mcp_call, mcp_describe
     from choreo.agents.tools.web_tools import web_search, fetch_url
 
     _TOOLS_CACHE = [
         read_git_log, send_notification,
-        read_file, write_file, edit_file, list_dir, grep, bash, skill_view,
-        skill_patch, skill_create,
+        read_file, write_file, edit_file, list_dir, grep, bash, skill_manager,
         mcp_call, mcp_describe,
         web_search, fetch_url,
     ]

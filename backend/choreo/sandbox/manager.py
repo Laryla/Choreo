@@ -68,7 +68,28 @@ class SandboxManager:
                 self._last_used[thread_id] = time.time()
                 return self._registry[thread_id]
 
-            sandbox = sandbox_factory(sandbox_name)
+            extra: dict = {}
+            try:
+                from choreo.skills import get_skill_store
+                extra["skills_dir"] = str(get_skill_store()._root.resolve())
+            except Exception:
+                pass
+            try:
+                from choreo.sandbox.factory import _load_yaml
+                from pathlib import Path
+                _cfg = _load_yaml(None)
+                _raw = _cfg.get("output_dir")
+                if _raw:
+                    # Per-thread output subdir so each thread's files are isolated
+                    _base = Path(_raw).expanduser().resolve()
+                    _thread_output = _base / thread_id
+                    _thread_output.mkdir(parents=True, exist_ok=True)
+                    extra["output_dir"] = str(_thread_output)
+            except Exception:
+                pass
+            # Per-thread container name for aios provider
+            extra["container_name"] = f"choreo-aios-{thread_id[:16]}"
+            sandbox = sandbox_factory(sandbox_name, extra_kwargs=extra)
             await sandbox.start()
 
             self._registry[thread_id] = sandbox
@@ -138,7 +159,7 @@ class SandboxManager:
         """
         while True:
             try:
-                await asyncio.sleep(60)
+                await asyncio.sleep(10)
                 now = time.time()
                 for thread_id in list(self._last_used.keys()):
                     last = self._last_used.get(thread_id)

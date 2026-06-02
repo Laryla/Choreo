@@ -58,7 +58,7 @@ class LocalSkillStore:
 
     def _archived_dir(self, skill_id: str) -> Path:
         cat, name = skill_id.split("/", 1)
-        return self._root / ".archived" / cat / name
+        return self._root / "archived" / cat / name
 
     def _skill_dir(self, skill_id: str) -> Path | None:
         """Return the actual directory (active or archived), or None."""
@@ -146,9 +146,9 @@ class LocalSkillStore:
                 if skill:
                     skills.append(skill)
 
-        # Archived skills: _root/.archived/category/name/SKILL.md
+        # Archived skills: _root/archived/category/name/SKILL.md
         if state != "active":
-            archived_root = self._root / ".archived"
+            archived_root = self._root / "archived"
             if archived_root.exists():
                 for skill_md in archived_root.glob("*/*/SKILL.md"):
                     skill_id = f"{skill_md.parent.parent.name}/{skill_md.parent.name}"
@@ -179,7 +179,9 @@ class LocalSkillStore:
         by_cat: dict[str, list[Skill]] = {}
         for s in skills:
             by_cat.setdefault(s.category, []).append(s)
-        lines = ["Available Skills (use skill_view to read full content):"]
+        lines = ["Available Skills (use skill_manager action=read to read full content):\n"
+                 "Skill scripts: $SKILLS_DIR/<category>/<skill>/scripts/ "
+                 "or .skills/<category>/<skill>/scripts/ (relative to sandbox workspace root)."]
         for cat in sorted(by_cat):
             lines.append(f"\n{cat}:")
             for s in sorted(by_cat[cat], key=lambda x: x.name):
@@ -203,22 +205,40 @@ class LocalSkillStore:
             entry = {**entry, "state": "archived"}
         return await asyncio.to_thread(self._parse_dir, skill_dir, entry)
 
-    async def list_files(self, skill_id: str) -> list[str]:
+    async def list_files(self, skill_id: str, subdir: str = "") -> list[str]:
         if len(skill_id.split("/", 1)) != 2:
             return []
         skill_dir = self._skill_dir(skill_id)
         if skill_dir is None:
             return []
+        base = skill_dir.resolve()
+        target = (base / subdir).resolve() if subdir else base
+        if not str(target).startswith(str(base)):
+            return []
+        if not target.is_dir():
+            return []
         items: list[str] = []
-        for f in skill_dir.iterdir():
+        for f in target.iterdir():
             if f.name.startswith("."):
                 continue
             if f.is_dir():
                 items.append(f.name + "/")
             elif f.is_file() and f.name not in _EXCLUDED_FILES:
                 items.append(f.name)
-        # directories first, then files, both alphabetical
         return sorted(items, key=lambda x: (not x.endswith("/"), x.lower()))
+
+    async def write_file(self, skill_id: str, file_path: str, content: str) -> None:
+        if len(skill_id.split("/", 1)) != 2:
+            raise ValueError("Invalid skill id")
+        raw_dir = self._skill_dir(skill_id)
+        if raw_dir is None:
+            raise FileNotFoundError(f"Skill not found: {skill_id}")
+        skill_dir = raw_dir.resolve()
+        target = (skill_dir / file_path).resolve()
+        if not str(target).startswith(str(skill_dir)):
+            raise PermissionError("Path traversal detected")
+        await asyncio.to_thread(target.parent.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(target.write_text, content, "utf-8")
 
     async def read_file(self, skill_id: str, file_path: str) -> str:
         if len(skill_id.split("/", 1)) != 2:

@@ -9,8 +9,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/threads": { target: "http://localhost:8000", changeOrigin: true },
-      "/api": { target: "http://localhost:8000", changeOrigin: true },
+      "/threads": { target: "http://localhost:8009", changeOrigin: true },
+      "/api": { target: "http://localhost:8009", changeOrigin: true },
     },
   },
 });

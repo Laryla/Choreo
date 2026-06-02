@@ -30,6 +30,8 @@ class DockerSandbox(BaseSandbox):
         image: str = "python:3.11-slim",
         workspace_dir: str = "/workspace",
         timeout: int = 60,
+        skills_dir: str | None = None,
+        output_dir: str | None = None,
         **_kwargs,
     ) -> None:
         try:
@@ -40,6 +42,8 @@ class DockerSandbox(BaseSandbox):
         self._image = image
         self._workspace_dir = workspace_dir
         self._default_timeout = timeout
+        self._skills_dir = Path(skills_dir).resolve() if skills_dir else None
+        self._output_dir = Path(output_dir).resolve() if output_dir else None
         self._container = None
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
 
@@ -52,16 +56,28 @@ class DockerSandbox(BaseSandbox):
         def _start() -> None:
             self._tmp_dir = tempfile.TemporaryDirectory(prefix="choreo_docker_")
             client = docker.from_env()
+            volumes: dict = {
+                self._tmp_dir.name: {
+                    "bind": self._workspace_dir,
+                    "mode": "rw",
+                }
+            }
+            if self._skills_dir and self._skills_dir.exists():
+                volumes[str(self._skills_dir)] = {
+                    "bind": f"{self._workspace_dir}/.skills",
+                    "mode": "ro",
+                }
+            if self._output_dir:
+                self._output_dir.mkdir(parents=True, exist_ok=True)
+                volumes[str(self._output_dir)] = {
+                    "bind": f"{self._workspace_dir}/output",
+                    "mode": "rw",
+                }
             self._container = client.containers.run(
                 self._image,
                 detach=True,
                 command="sleep infinity",
-                volumes={
-                    self._tmp_dir.name: {
-                        "bind": self._workspace_dir,
-                        "mode": "rw",
-                    }
-                },
+                volumes=volumes,
                 working_dir=self._workspace_dir,
             )
 

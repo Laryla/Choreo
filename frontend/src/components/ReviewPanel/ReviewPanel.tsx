@@ -119,7 +119,7 @@ export default function ReviewPanel() {
                   <div key={key}>
                     <div className="text-[#569cd6] text-[11px] mb-1">{key}</div>
                     {isCode ? (
-                      <div className={`bg-[#111] border border-[#222] rounded px-3 py-2 text-[#ce9178] leading-5 ${isLong ? "whitespace-pre-wrap break-all" : "whitespace-nowrap overflow-x-auto"}`}>
+                      <div className={`bg-[#111] border border-[#222] rounded px-3 py-2 text-[#ce9178] leading-5 max-h-[240px] overflow-y-auto overflow-x-auto ${isLong ? "whitespace-pre-wrap break-all" : "whitespace-nowrap"}`}>
                         {strVal}
                       </div>
                     ) : (

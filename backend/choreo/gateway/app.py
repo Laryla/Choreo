@@ -1,5 +1,22 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
+
+def _setup_logging() -> None:
+    try:
+        _cfg_path = Path(__file__).parents[3] / "config.yaml"
+        with open(_cfg_path) as _f:
+            import yaml as _y
+            _level_str = (_y.safe_load(_f) or {}).get("log_level", "INFO").upper()
+    except Exception:
+        _level_str = "INFO"
+    logging.basicConfig(
+        level=getattr(logging, _level_str, logging.INFO),
+        format="%(levelname)s %(name)s: %(message)s",
+    )
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+_setup_logging()
 from pathlib import Path
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware

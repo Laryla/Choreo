@@ -1,8 +1,8 @@
 from langchain.agents import create_agent
 from choreo.model_factory import load_model
-from choreo.agents.tools import read_git_log, send_notification, read_file, write_file, edit_file, list_dir, grep, bash, skill_view
+from choreo.agents.tools import read_git_log, send_notification, read_file, write_file, edit_file, list_dir, grep, bash
 from choreo.agents.tools.mcp_tool import mcp_call, mcp_describe
-from choreo.agents.tools.skill_tool import skill_patch, skill_create
+from choreo.agents.tools.skill_tool import skill_manager
 from choreo.agents.tools.task_tool import task
 from choreo.agents.prompt import build_system_prompt
 from choreo.agents.middlewares import (
@@ -23,8 +23,7 @@ def create_choreo_agent(checkpointer):
         tools=[
             task,
             read_git_log, send_notification, read_file, write_file,
-            edit_file, list_dir, grep, bash, skill_view,
-            skill_patch, skill_create,
+            edit_file, list_dir, grep, bash, skill_manager,
             mcp_call, mcp_describe,
         ],
         system_prompt=build_system_prompt(),

@@ -101,6 +101,7 @@ def get_active_sandbox_config(yaml_path: str | Path | None = None) -> dict:
 def sandbox_factory(
     name: str | None = None,
     yaml_path: str | Path | None = None,
+    extra_kwargs: dict[str, Any] | None = None,
 ) -> BaseSandbox:
     """
     根据 config.yaml 创建并返回对应的 BaseSandbox 实例。
@@ -151,5 +152,7 @@ def sandbox_factory(
         for k, v in entry.items()
         if k not in _RESERVED_KEYS
     }
+    if extra_kwargs:
+        kwargs.update(extra_kwargs)
 
     return cls(**kwargs)

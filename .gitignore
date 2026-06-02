@@ -17,10 +17,10 @@ frontend/dist/
 frontend/.vite/
 
 # 沙箱工作目录
-backend/sandbox/
+sandbox/
 
 # skill
-backend/skills
+skills
 
 # Debug / temp test scripts
 backend/tests/debug_*.py

@@ -146,9 +146,25 @@ class DaytonaSandboxAdapter(BaseSandbox):
         return f"已替换 {count} 处"
 
     async def list_dir(self, path: str = ".") -> str:
-        """列出远程目录内容（ls -la）。"""
+        """列出远程目录内容，返回与其他 provider 一致的格式。"""
         self._assert_running()
-        return await self.bash(f"ls -la {path}")
+        raw = await self.bash(
+            f'find "{path}" -maxdepth 1 -mindepth 1 -printf "%y %s %f\\n" 2>/dev/null'
+        )
+        lines = []
+        for line in raw.splitlines():
+            parts = line.split(" ", 2)
+            if len(parts) < 3:
+                continue
+            ftype, size, name = parts
+            if ftype == "d":
+                lines.append(f"D {name}/")
+            else:
+                try:
+                    lines.append(f"F {name} ({int(size)})")
+                except ValueError:
+                    lines.append(f"F {name} (0)")
+        return "\n".join(lines) or "(空目录)"
 
     async def grep(
         self,
