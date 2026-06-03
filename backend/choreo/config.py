@@ -59,5 +59,11 @@ class Settings(BaseSettings):
     FEISHU_BOT_OPEN_ID: str = ""                  # 群聊 @mention 过滤用
     FEISHU_ENABLED: bool = False                  # 显式开启才启动
 
+    # 上下文压缩
+    CONTEXT_COMPRESSION_ENABLED: bool = True
+    CONTEXT_COMPRESSION_TRIGGER_MESSAGES: int = 60
+    CONTEXT_COMPRESSION_TRIGGER_TOKENS: int = 60000
+    CONTEXT_COMPRESSION_KEEP_MESSAGES: int = 20
+
 
 settings = Settings()
