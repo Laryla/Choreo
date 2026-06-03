@@ -17,3 +17,15 @@ def get_agent() -> Runnable:
     if _agent is None:
         raise RuntimeError("Agent 尚未初始化，请确认 FastAPI lifespan 已启动")
     return _agent
+
+
+_scheduler = None
+
+
+def set_scheduler(s) -> None:
+    global _scheduler
+    _scheduler = s
+
+
+def get_scheduler():
+    return _scheduler

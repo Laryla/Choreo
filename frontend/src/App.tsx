@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Sidebar from "./components/Sidebar/Sidebar";
 import ChatPage from "./pages/ChatPage";
 import TaskListPage from "./pages/TaskListPage";
+import TaskRunsPage from "./pages/TaskRunsPage";
 import HistoryPage from "./pages/HistoryPage";
 import CustomizePage from "./pages/CustomizePage";
 import LoginPage from "./pages/LoginPage";
@@ -28,6 +29,7 @@ export default function App() {
                   <Route path="/chat" element={<ChatPage />} />
                   <Route path="/chat/:threadId" element={<ChatPage />} />
                   <Route path="/tasks" element={<TaskListPage />} />
+                  <Route path="/tasks/:taskId" element={<TaskRunsPage />} />
                   <Route path="/history" element={<HistoryPage />} />
                   <Route path="/skills" element={<Navigate to="/customize/skills" replace />} />
                   <Route path="/customize/*" element={<CustomizePage />} />

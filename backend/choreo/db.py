@@ -19,9 +19,23 @@ class TaskRow(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     description: Mapped[str] = mapped_column(String)
     cron: Mapped[str] = mapped_column(String)
-    script_path: Mapped[str] = mapped_column(String)
+    script_path: Mapped[str] = mapped_column(String, default="")
+    prompt: Mapped[str] = mapped_column(String, default="")
+    notify_config: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String, default="active")
     user_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+
+
+class TaskRunRow(Base):
+    __tablename__ = "task_runs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    task_id: Mapped[str] = mapped_column(String, index=True)
+    status: Mapped[str] = mapped_column(String, default="pending")  # pending|running|success|failed
+    started_at: Mapped[int] = mapped_column(BigInteger, default=0)
+    finished_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    output: Mapped[str] = mapped_column(String, default="")
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class ThreadRow(Base):

@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getTasks, deleteTask, patchTask } from "@/api/tasks";
 import Topbar from "@/components/Topbar/Topbar";
+import CreateTaskModal from "@/components/Tasks/CreateTaskModal";
 import type { Task } from "@/types/task";
 
 export default function TaskListPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     getTasks().then(setTasks).catch(console.error);
@@ -27,7 +31,10 @@ export default function TaskListPage() {
       <Topbar
         title="定时任务"
         action={
-          <button className="text-[11px] px-2.5 py-1 rounded-lg bg-[#e6e2da] dark:bg-[#1e1e1e] border border-[#d6d0c7] dark:border-[#2a2a2a] text-[#555] dark:text-[#555] hover:opacity-80">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="text-[11px] px-2.5 py-1 rounded-lg bg-[#e6e2da] dark:bg-[#1e1e1e] border border-[#d6d0c7] dark:border-[#2a2a2a] text-[#555] dark:text-[#555] hover:opacity-80"
+          >
             + 新建任务
           </button>
         }
@@ -44,12 +51,15 @@ export default function TaskListPage() {
                 key={task.id}
                 className="flex items-center gap-3 bg-white dark:bg-[#1a1a1a] border border-[#e0dcd4] dark:border-[#202020] rounded-xl px-3.5 py-3"
               >
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12.5px] font-medium text-[#0f0f0f] dark:text-[#e8e8e8] truncate">
+                <div
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => navigate(`/tasks/${task.id}`)}
+                >
+                  <p className="text-[12.5px] font-medium text-[#0f0f0f] dark:text-[#e8e8e8] truncate hover:underline">
                     {task.description}
                   </p>
                   <p className="text-[10.5px] text-[#aaa] dark:text-[#444] mt-0.5 truncate">
-                    cron: {task.cron} · {task.script_path}
+                    cron: {task.cron}
                   </p>
                 </div>
                 <span
@@ -78,6 +88,15 @@ export default function TaskListPage() {
           </div>
         )}
       </div>
+      {showCreate && (
+        <CreateTaskModal
+          onClose={() => setShowCreate(false)}
+          onCreated={(task) => {
+            setTasks((prev) => [task, ...prev]);
+            setShowCreate(false);
+          }}
+        />
+      )}
     </div>
   );
 }
