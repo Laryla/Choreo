@@ -87,7 +87,7 @@ def create_choreo_agent(checkpointer=None, headless: bool = False):
         ],
         system_prompt=build_system_prompt(),
         middleware=[
-            *([_make_compression_middleware()] if settings.CONTEXT_COMPRESSION_ENABLED else []),
+            *([c] if (c := _make_compression_middleware()) else []),
             McpContextMiddleware(),
             SkillsContextMiddleware(),
             ModelSelectorMiddleware(),
