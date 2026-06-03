@@ -27,8 +27,16 @@ async def get_task_and_last_run(task_id: str) -> tuple[TaskRow | None, TaskRunRo
         return task, last
 
 
-async def create_run(task_id: str) -> TaskRunRow:
+async def create_run(task_id: str, run_id: str | None = None) -> TaskRunRow:
     async with SessionLocal() as db:
+        if run_id:
+            run = (await db.execute(select(TaskRunRow).where(TaskRunRow.id == run_id))).scalar_one_or_none()
+            if run:
+                run.status = "running"
+                run.started_at = int(time.time() * 1000)
+                await db.commit()
+                await db.refresh(run)
+                return run
         run = TaskRunRow(
             id=str(uuid.uuid4()),
             task_id=task_id,
@@ -52,13 +60,13 @@ async def update_run(run_id: str, *, status: str, output: str = "", error: str |
 
 
 class TaskRunner:
-    async def run(self, task_id: str) -> None:
+    async def run(self, task_id: str, run_id: str | None = None) -> None:
         task, last_run = await get_task_and_last_run(task_id)
         if not task:
             logger.error("TaskRunner: task %s not found", task_id)
             return
 
-        run = await create_run(task_id)
+        run = await create_run(task_id, run_id)
         logger.info("TaskRunner: starting run %s for task %s", run.id, task_id)
 
         prompt = task.prompt
@@ -78,10 +86,14 @@ class TaskRunner:
                     output = content
                     break
             await update_run(run.id, status="success", output=output)
+            run.status = "success"
+            run.output = output
             logger.info("TaskRunner: run %s succeeded", run.id)
         except Exception as e:
             logger.exception("TaskRunner: run %s failed", run.id)
             await update_run(run.id, status="failed", error=str(e))
+            run.status = "failed"
+            run.error = str(e)
             return
 
         notifier = NotifierRouter()

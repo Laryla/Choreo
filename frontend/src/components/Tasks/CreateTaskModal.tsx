@@ -104,7 +104,7 @@ export default function CreateTaskModal({ onClose, onCreated }: Props) {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[#888]">飞书 Webhook（可选）</label>
+            <label className="text-[11px] text-[#888]">飞书 Webhook <span className="text-[#bbb]">（留空则使用全局 Bot 推送）</span></label>
             <input
               value={form.webhook}
               onChange={set("webhook")}
