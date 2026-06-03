@@ -12,6 +12,9 @@ class NotifierRouter:
             t = ch.get("type")
             if t == "feishu":
                 notifiers.append(FeishuNotifier(ch.get("webhook", "")))
+        # 没有配置任何渠道时，回退到全局飞书 Bot
+        if not notifiers:
+            notifiers.append(FeishuNotifier())
         return notifiers
 
     async def send(self, task, run) -> None:

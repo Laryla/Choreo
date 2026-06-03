@@ -133,8 +133,6 @@ async def trigger_run(task_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "task not found")
     import asyncio
     from choreo.scheduler.runner import TaskRunner
-    runner = TaskRunner()
-    asyncio.create_task(runner.run(task_id))
     run = TaskRunRow(
         id=str(uuid.uuid4()),
         task_id=task_id,
@@ -143,4 +141,7 @@ async def trigger_run(task_id: str, db: AsyncSession = Depends(get_db)):
     )
     db.add(run)
     await db.commit()
+    run_id = run.id
+    runner = TaskRunner()
+    asyncio.create_task(runner.run(task_id, run_id))
     return _row_to_run(run)
