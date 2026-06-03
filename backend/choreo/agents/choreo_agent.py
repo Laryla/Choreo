@@ -1,4 +1,5 @@
 from langchain.agents import create_agent
+from langchain.agents.middleware.summarization import SummarizationMiddleware
 from choreo.model_factory import load_model
 from choreo.agents.tools import read_git_log, send_notification, read_file, write_file, edit_file, list_dir, grep, bash
 from choreo.agents.tools.mcp_tool import mcp_call, mcp_describe
@@ -17,6 +18,19 @@ from choreo.config import settings
 llm = load_model()
 
 
+def _make_compression_middleware() -> SummarizationMiddleware | None:
+    if not settings.CONTEXT_COMPRESSION_ENABLED:
+        return None
+    return SummarizationMiddleware(
+        model=llm,
+        trigger=[
+            ("messages", settings.CONTEXT_COMPRESSION_TRIGGER_MESSAGES),
+            ("tokens", settings.CONTEXT_COMPRESSION_TRIGGER_TOKENS),
+        ],
+        keep=("messages", settings.CONTEXT_COMPRESSION_KEEP_MESSAGES),
+    )
+
+
 def create_choreo_agent(checkpointer=None, headless: bool = False):
     """
     创建 Choreo agent。
@@ -25,7 +39,13 @@ def create_choreo_agent(checkpointer=None, headless: bool = False):
     from choreo.agents.tools.web_tools import web_search, fetch_url
 
     if headless:
-        _allowed = {"web_search", "fetch_url", "read_file", "list_dir", "grep", "read_git_log"}
+        _allowed = {
+            "web_search", "fetch_url",
+            "read_file", "write_file", "edit_file", "list_dir", "grep",
+            "read_git_log", "bash",
+            "send_notification",
+            "skill_manager", "mcp_call", "mcp_describe",
+        }
         _all = [
             task,
             read_git_log, send_notification, read_file, write_file,
@@ -33,7 +53,9 @@ def create_choreo_agent(checkpointer=None, headless: bool = False):
             mcp_call, mcp_describe, web_search, fetch_url,
         ]
         tools = [t for t in _all if t.name in _allowed]
+        _compression = _make_compression_middleware()
         middleware = [
+            *([_compression] if _compression else []),
             ModelSelectorMiddleware(),
             ModelCallLimitMiddleware(max_calls=settings.CHOREO_MAX_LLM_CALLS),
         ]
@@ -65,6 +87,7 @@ def create_choreo_agent(checkpointer=None, headless: bool = False):
         ],
         system_prompt=build_system_prompt(),
         middleware=[
+            *([_make_compression_middleware()] if settings.CONTEXT_COMPRESSION_ENABLED else []),
             McpContextMiddleware(),
             SkillsContextMiddleware(),
             ModelSelectorMiddleware(),
