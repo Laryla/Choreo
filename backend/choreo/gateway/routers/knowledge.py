@@ -1,3 +1,4 @@
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -8,6 +9,12 @@ from choreo.config import settings
 from choreo.kb.graph_parser import parse_graph
 
 router = APIRouter()
+
+_ALLOWED_EXTS = {
+    ".md", ".txt", ".pdf", ".docx", ".pptx", ".xlsx",
+    ".html", ".htm", ".csv", ".json", ".xml",
+}
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
 
 
 def _kb_root() -> Path:
@@ -33,15 +40,46 @@ async def list_raw():
 
 @router.post("/raw/", status_code=201)
 async def upload_raw(file: UploadFile = File(...)):
-    if not file.filename or not file.filename.endswith(".md"):
-        raise HTTPException(400, "只支持 .md 文件")
+    if not file.filename:
+        raise HTTPException(400, "缺少文件名")
+    suffix = Path(file.filename).suffix.lower()
+    if suffix in _IMAGE_EXTS:
+        raise HTTPException(400, "暂不支持图片格式，请上传 PDF/DOCX/MD 等文本格式")
+    if suffix not in _ALLOWED_EXTS:
+        raise HTTPException(400, f"不支持的格式 {suffix}，支持：{', '.join(sorted(_ALLOWED_EXTS))}")
+
     raw_dir = _kb_root() / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
-    target = (raw_dir / file.filename).resolve()
+    stem = Path(file.filename).stem
+    data = await file.read()
+
+    if suffix in {".md", ".txt"}:
+        out_name = stem + ".md"
+        target = (raw_dir / out_name).resolve()
+        if not str(target).startswith(str(raw_dir.resolve())):
+            raise HTTPException(400, "非法文件名")
+        target.write_bytes(data)
+        return {"filename": out_name}
+
+    # 非纯文本格式：用 markitdown 转换
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(data)
+        tmp_path = tmp.name
+
+    try:
+        from markitdown import MarkItDown
+        md = MarkItDown()
+        result = md.convert(tmp_path)
+        md_content = result.text_content
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    out_name = stem + ".md"
+    target = (raw_dir / out_name).resolve()
     if not str(target).startswith(str(raw_dir.resolve())):
         raise HTTPException(400, "非法文件名")
-    target.write_bytes(await file.read())
-    return {"filename": file.filename}
+    target.write_text(md_content, encoding="utf-8")
+    return {"filename": out_name, "converted_from": file.filename}
 
 
 _WIKI_CONTENT_DIRS = {"concepts", "entities", "sources", "comparisons"}
@@ -70,6 +108,28 @@ async def read_wiki(page_path: str):
     return {"path": page_path, "content": target.read_text(errors="replace")}
 
 
+@router.get("/outputs/")
+async def list_outputs():
+    outputs_dir = _kb_root() / "wiki" / "outputs"
+    outputs_dir.mkdir(parents=True, exist_ok=True)
+    return [
+        {"name": f.name, "size": f.stat().st_size, "modified_at": int(f.stat().st_mtime)}
+        for f in sorted(outputs_dir.iterdir(), reverse=True)
+        if f.is_file()
+    ]
+
+
+@router.get("/outputs/{filename}")
+async def read_output(filename: str):
+    outputs_dir = _kb_root() / "wiki" / "outputs"
+    target = (outputs_dir / filename).resolve()
+    if not str(target).startswith(str(outputs_dir.resolve())):
+        raise HTTPException(400, "非法路径")
+    if not target.exists():
+        raise HTTPException(404, "文件不存在")
+    return {"name": filename, "content": target.read_text(errors="replace")}
+
+
 @router.get("/graph")
 async def get_graph():
     return parse_graph(settings.KNOWLEDGE_BASE_DIR)
@@ -85,19 +145,39 @@ async def get_log():
 
 async def _run_ingest() -> None:
     from langchain_core.messages import HumanMessage
-    from choreo.agents.choreo_agent import create_choreo_agent
+    from choreo.agents.choreo_agent import create_kb_agent
     from choreo.kb.compiler_prompt import INGEST_PROMPT
     today = datetime.now().strftime("%Y-%m-%d")
-    agent = create_choreo_agent(headless=True)
-    await agent.ainvoke({"messages": [HumanMessage(content=INGEST_PROMPT.format(today=today))]})
+
+    # 注入当前索引
+    index_path = _kb_root() / "wiki" / "index.md"
+    index_content = ""
+    if index_path.exists():
+        text = index_path.read_text(encoding="utf-8", errors="replace").strip()
+        if text and text != "# Knowledge Base Index":
+            index_content = f"\n\n## 当前知识库索引（已有页面，避免重复创建）\n\n{text}\n"
+
+    # 注入最新 lint 报告（优先处理缺失页面）
+    lint_content = ""
+    outputs_dir = _kb_root() / "wiki" / "outputs"
+    if outputs_dir.exists():
+        reports = sorted(outputs_dir.glob("lint-*.md"), reverse=True)
+        if reports:
+            text = reports[0].read_text(encoding="utf-8", errors="replace").strip()
+            if text:
+                lint_content = f"\n\n## 最新 Lint 报告（{reports[0].name}，优先补全缺失页面）\n\n{text}\n"
+
+    prompt = INGEST_PROMPT.format(today=today) + index_content + lint_content
+    agent = create_kb_agent()
+    await agent.ainvoke({"messages": [HumanMessage(content=prompt)]})
 
 
 async def _run_lint() -> None:
     from langchain_core.messages import HumanMessage
-    from choreo.agents.choreo_agent import create_choreo_agent
+    from choreo.agents.choreo_agent import create_kb_agent
     from choreo.kb.compiler_prompt import LINT_PROMPT
     date = datetime.now().strftime("%Y-%m-%d")
-    agent = create_choreo_agent(headless=True)
+    agent = create_kb_agent()
     await agent.ainvoke({"messages": [HumanMessage(content=LINT_PROMPT.format(date=date))]})
 
 

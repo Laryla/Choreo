@@ -7,6 +7,7 @@ export const KB_RAW_KEY = "/api/kb/raw/";
 export const KB_WIKI_KEY = "/api/kb/wiki/";
 export const KB_GRAPH_KEY = "/api/kb/graph";
 export const KB_LOG_KEY = "/api/kb/log";
+export const KB_OUTPUTS_KEY = "/api/kb/outputs/";
 
 export interface RawFile {
   name: string;
@@ -63,6 +64,24 @@ export async function triggerIngest(): Promise<void> {
   await mutate(KB_LOG_KEY);
 }
 
+export interface OutputFile {
+  name: string;
+  size: number;
+  modified_at: number;
+}
+
+export function useOutputs() {
+  return useSWR<OutputFile[]>(KB_OUTPUTS_KEY, fetcher);
+}
+
+export function useOutputFile(name: string | null) {
+  return useSWR<{ name: string; content: string }>(
+    name ? `/api/kb/outputs/${name}` : null,
+    fetcher
+  );
+}
+
 export async function triggerLint(): Promise<void> {
   await apiFetch("/api/kb/lint", { method: "POST" });
+  await mutate(KB_OUTPUTS_KEY);
 }

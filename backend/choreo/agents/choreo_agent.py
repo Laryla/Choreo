@@ -36,6 +36,30 @@ def _make_compression_middleware() -> SummarizationMiddleware | None:
     )
 
 
+def create_kb_agent():
+    """专用知识库编译 agent，只有 KB 工具，不含沙箱工具。"""
+    _compression = _make_compression_middleware()
+    middleware = [
+        *([_compression] if _compression else []),
+        ModelSelectorMiddleware(),
+        ModelCallLimitMiddleware(max_calls=settings.CHOREO_MAX_LLM_CALLS),
+    ]
+    return create_agent(
+        model=llm,
+        tools=[
+            kb_grep, kb_read, kb_add_raw,
+            kb_list_raw, kb_read_raw, kb_write_wiki,
+            kb_read_log, kb_append_log, kb_write_index,
+        ],
+        system_prompt=(
+            "你是知识库编译器，只能使用 kb_* 工具操作知识库文件。\n"
+            "严禁使用 read_file / write_file / list_dir / bash 等沙箱工具。\n"
+            "必须实际调用工具写出文件，不要只描述要做什么。"
+        ),
+        middleware=middleware,
+    )
+
+
 def create_choreo_agent(checkpointer=None, headless: bool = False):
     """
     创建 Choreo agent。
