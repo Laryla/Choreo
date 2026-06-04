@@ -79,6 +79,11 @@ async def lifespan(app: FastAPI):
     set_sandbox_manager(manager)
     eviction_task = asyncio.create_task(manager.evict_idle())
 
+    # 用户画像调度器
+    from choreo.activity.profiler import start_profile_scheduler
+    profile_scheduler = start_profile_scheduler()
+    app.state.profile_scheduler = profile_scheduler
+
     # 5. 初始化 PostgreSQL checkpointer，持久化 LangGraph 对话状态
     async with AsyncPostgresSaver.from_conn_string(
         settings.DATABASE_URL_PSYCOPG
@@ -104,6 +109,8 @@ async def lifespan(app: FastAPI):
         finally:
             await _channel_manager.stop_all()
             task_scheduler.shutdown()
+            if profile_scheduler is not None:
+                profile_scheduler.shutdown(wait=False)
 
     # 清理
     _curator.stop()
