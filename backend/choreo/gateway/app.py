@@ -37,7 +37,9 @@ from choreo.gateway.routers import mcp as mcp_router
 from choreo.gateway.routers import output as output_router
 from choreo.mcp import McpManager, set_mcp_manager
 from choreo.gateway.routers import auth as auth_router
+from choreo.gateway.routers import knowledge as knowledge_router
 from choreo.auth.deps import require_auth
+from choreo.kb.init import kb_init
 from choreo.channel import ChannelManager, make_channel_router
 from choreo.platforms.registry import platform_registry
 
@@ -59,6 +61,7 @@ async def lifespan(app: FastAPI):
 
     # 1. 建表（幂等）
     await init_db()
+    kb_init(settings.KNOWLEDGE_BASE_DIR)
 
     # 1b. 启动任务调度器
     task_scheduler = TaskScheduler()
@@ -132,6 +135,8 @@ app.include_router(models.router,  prefix="/models",      tags=["models"],   dep
 app.include_router(skills_router.router, prefix="/api/skills", tags=["skills"], dependencies=[Depends(require_auth)])
 app.include_router(mcp_router.router,    prefix="/api/mcp",    tags=["mcp"],    dependencies=[Depends(require_auth)])
 app.include_router(output_router.router, prefix="/api",        tags=["output"])
+
+app.include_router(knowledge_router.router, prefix="/api/kb", tags=["knowledge"], dependencies=[Depends(require_auth)])
 
 # Channel webhook endpoints (no auth — Feishu validates via its own mechanism)
 app.include_router(make_channel_router())
