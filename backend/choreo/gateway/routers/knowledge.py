@@ -70,6 +70,28 @@ async def read_wiki(page_path: str):
     return {"path": page_path, "content": target.read_text(errors="replace")}
 
 
+@router.get("/outputs/")
+async def list_outputs():
+    outputs_dir = _kb_root() / "outputs"
+    outputs_dir.mkdir(parents=True, exist_ok=True)
+    return [
+        {"name": f.name, "size": f.stat().st_size, "modified_at": int(f.stat().st_mtime)}
+        for f in sorted(outputs_dir.iterdir(), reverse=True)
+        if f.is_file()
+    ]
+
+
+@router.get("/outputs/{filename}")
+async def read_output(filename: str):
+    outputs_dir = _kb_root() / "outputs"
+    target = (outputs_dir / filename).resolve()
+    if not str(target).startswith(str(outputs_dir.resolve())):
+        raise HTTPException(400, "非法路径")
+    if not target.exists():
+        raise HTTPException(404, "文件不存在")
+    return {"name": filename, "content": target.read_text(errors="replace")}
+
+
 @router.get("/graph")
 async def get_graph():
     return parse_graph(settings.KNOWLEDGE_BASE_DIR)

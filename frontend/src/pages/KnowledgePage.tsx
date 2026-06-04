@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import Topbar from "@/components/Topbar/Topbar";
 import {
   useRawFiles, useWikiList, useKBGraph, useKBLog, useWikiPage,
+  useOutputs, useOutputFile,
   uploadRaw, triggerIngest, triggerLint,
   type WikiPageMeta,
 } from "@/hooks/useKnowledge";
@@ -188,8 +189,11 @@ function WikiView() {
 function RawView() {
   const { data: files } = useRawFiles();
   const { data: log } = useKBLog();
+  const { data: outputs } = useOutputs();
   const [uploading, setUploading] = useState(false);
   const [ingesting, setIngesting] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<string | null>(null);
+  const { data: report } = useOutputFile(selectedReport);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -212,6 +216,10 @@ function RawView() {
     }
   };
 
+  const handleLint = async () => {
+    await triggerLint();
+  };
+
   return (
     <div className="flex flex-col h-full p-6 gap-4">
       <div className="flex items-center gap-3">
@@ -227,14 +235,15 @@ function RawView() {
           {ingesting ? "编译中…" : "触发编译"}
         </button>
         <button
-          onClick={triggerLint}
+          onClick={handleLint}
           className="text-xs px-3 py-1.5 rounded-lg bg-[#e6e2da] dark:bg-[#1e1e1e] border border-[#d6d0c7] dark:border-[#2a2a2a] hover:opacity-80"
         >
           Lint 检查
         </button>
       </div>
       <div className="flex gap-4 flex-1 min-h-0">
-        <div className="flex-1 overflow-y-auto">
+        {/* 原始资料列表 */}
+        <div className="w-48 flex-shrink-0 overflow-y-auto">
           <p className="text-xs font-medium text-[#888] mb-2">
             原始资料（{files?.length ?? 0} 个）
           </p>
@@ -243,16 +252,51 @@ function RawView() {
               key={f.name}
               className="text-xs py-1.5 border-b border-[#e6e2da] dark:border-[#2a2a2a] text-[#555] dark:text-[#888]"
             >
-              {f.name}{" "}
-              <span className="text-[#aaa]">（{(f.size / 1024).toFixed(1)} KB）</span>
+              {f.name}
+              <span className="text-[#aaa] ml-1">({(f.size / 1024).toFixed(1)}K)</span>
             </div>
           ))}
         </div>
-        <div className="flex-1 overflow-y-auto">
+
+        {/* 编译日志 */}
+        <div className="w-56 flex-shrink-0 overflow-y-auto border-l border-[#e6e2da] dark:border-[#2a2a2a] pl-4">
           <p className="text-xs font-medium text-[#888] mb-2">编译日志</p>
           <pre className="text-[10px] text-[#666] dark:text-[#555] whitespace-pre-wrap">
             {log?.content || "暂无日志"}
           </pre>
+        </div>
+
+        {/* Lint 报告 */}
+        <div className="flex-1 flex flex-col min-h-0 border-l border-[#e6e2da] dark:border-[#2a2a2a] pl-4">
+          <p className="text-xs font-medium text-[#888] mb-2">
+            Lint 报告（{outputs?.length ?? 0} 份）
+          </p>
+          {!outputs || outputs.length === 0 ? (
+            <p className="text-xs text-[#aaa]">暂无报告，点击「Lint 检查」生成</p>
+          ) : (
+            <div className="flex flex-col gap-1 mb-3">
+              {outputs.map((o) => (
+                <button
+                  key={o.name}
+                  onClick={() => setSelectedReport(o.name)}
+                  className={`text-left text-xs px-2 py-1.5 rounded truncate transition-colors ${
+                    selectedReport === o.name
+                      ? "bg-[#e6e2da] dark:bg-[#1e1e1e] font-medium text-[#333] dark:text-[#ccc]"
+                      : "text-[#666] hover:bg-[#e6e2da] dark:hover:bg-[#1e1e1e]"
+                  }`}
+                >
+                  {o.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {report && (
+            <div className="flex-1 overflow-y-auto border-t border-[#e6e2da] dark:border-[#2a2a2a] pt-3">
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown>{report.content}</ReactMarkdown>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
