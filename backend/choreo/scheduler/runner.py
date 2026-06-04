@@ -89,6 +89,19 @@ class TaskRunner:
             run.status = "success"
             run.output = output
             logger.info("TaskRunner: run %s succeeded", run.id)
+
+            # 自动将工作流结果归档到 KB raw/
+            if task.notify_config.get("archive_to_kb"):
+                from pathlib import Path
+                from datetime import datetime
+                from choreo.config import settings
+                raw_dir = Path(settings.KNOWLEDGE_BASE_DIR) / "raw"
+                raw_dir.mkdir(parents=True, exist_ok=True)
+                date_str = datetime.now().strftime("%Y-%m-%d")
+                filename = f"task-{task.id[:8]}-{date_str}.md"
+                content = f"# 任务输出：{task.description}\n\n**日期：** {date_str}\n\n{output}"
+                (raw_dir / filename).write_text(content, encoding="utf-8")
+                logger.info("KB: 已将任务输出归档到 raw/%s", filename)
         except Exception as e:
             logger.exception("TaskRunner: run %s failed", run.id)
             await update_run(run.id, status="failed", error=str(e))

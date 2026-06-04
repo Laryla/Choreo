@@ -5,6 +5,7 @@ import TaskListPage from "./pages/TaskListPage";
 import TaskRunsPage from "./pages/TaskRunsPage";
 import HistoryPage from "./pages/HistoryPage";
 import CustomizePage from "./pages/CustomizePage";
+import KnowledgePage from "./pages/KnowledgePage";
 import LoginPage from "./pages/LoginPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -33,6 +34,7 @@ export default function App() {
                   <Route path="/history" element={<HistoryPage />} />
                   <Route path="/skills" element={<Navigate to="/customize/skills" replace />} />
                   <Route path="/customize/*" element={<CustomizePage />} />
+                  <Route path="/knowledge" element={<KnowledgePage />} />
                 </Routes>
               </div>
             </div>

@@ -35,6 +35,15 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    to: "/knowledge",
+    label: "知识库",
+    icon: (
+      <svg className="w-4 h-4 opacity-60 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M3 2h7l3 3v9H3V2z" /><path d="M10 2v3h3" /><line x1="5" y1="7" x2="11" y2="7" /><line x1="5" y1="10" x2="9" y2="10" />
+      </svg>
+    ),
+  },
+  {
     to: "/customize",
     label: "自定义",
     icon: (
