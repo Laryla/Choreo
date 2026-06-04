@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # 知识库
     KNOWLEDGE_BASE_DIR: str = "./knowledge"
 
+    # 用户画像
+    ACTIVITY_PROFILE: dict = {}
+
     # Auth
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
