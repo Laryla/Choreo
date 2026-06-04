@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 SYSTEM_PROMPT_TEMPLATE = """\
 # Role: 多工具任务编排与执行专家
@@ -113,6 +114,22 @@ SYSTEM_PROMPT_TEMPLATE = """\
 """
 
 
+def _load_user_context() -> str:
+    """读取 wiki/user/recent-context.md，失败时静默返回空。"""
+    try:
+        from choreo.config import settings
+        kb_root = Path(settings.KNOWLEDGE_BASE_DIR).expanduser()
+        path = kb_root / "wiki" / "user" / "recent-context.md"
+        if path.exists():
+            content = path.read_text(encoding="utf-8", errors="replace").strip()
+            if content:
+                return f"\n\n## 用户近期上下文\n\n{content}\n"
+    except Exception:
+        pass
+    return ""
+
+
 def build_system_prompt() -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return SYSTEM_PROMPT_TEMPLATE.format(now=now)
+    user_context = _load_user_context()
+    return SYSTEM_PROMPT_TEMPLATE.format(now=now) + user_context
