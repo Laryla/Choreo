@@ -75,13 +75,13 @@ async def update_profile() -> None:
     logger.info("用户画像更新完成，周期：%s", week)
 
 
-def start_profile_scheduler():
+def start_profile_scheduler(cfg: dict | None = None):
     """启动画像更新的 APScheduler，返回 scheduler 实例（关闭时调用 .shutdown()）。"""
-    from choreo.config import settings
+    if cfg is None:
+        from choreo.config import settings
+        cfg = settings.ACTIVITY_PROFILE or {}
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
-
-    cfg: dict = getattr(settings, "ACTIVITY_PROFILE", {}) or {}
     if not cfg.get("enabled", False):
         logger.info("activity_profile 未启用，画像循环不启动")
         return None

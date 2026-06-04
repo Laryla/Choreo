@@ -1,58 +1,110 @@
-# Choreo 模型配置
-# active_model: 指定默认使用哪个 name 的模型
-# 也可通过环境变量 CHOREO_MODEL_NAME=xxx 运行时切换
+# Choreo 配置文件
+# 复制为 config.yaml 并按需修改
+# 密钥（api_key 等）请用 $ENV_VAR 形式引用，实际值存 .env
 #
 # ── 思考内容（Thinking）说明 ──────────────────────────────────────────
-# 不同提供商开启方式不同：
+#  DeepSeek：模型级别区分
+#    deepseek-chat     → 无思考
+#    deepseek-reasoner → 始终思考，返回 reasoning_content
 #
-#  DeepSeek：模型级别区分，无需额外参数
-#    deepseek-chat     → 无思考（通用对话）
-#    deepseek-reasoner → 始终思考，reasoning_content 字段自动返回
-#
-#  Anthropic Claude：通过 thinking 字段开启，需设置 token budget
+#  Anthropic Claude：通过 thinking 字段开启
 #    thinking:
 #      type: enabled
-#      budget_tokens: 8000    # 思考最多消耗的 token 数
+#      budget_tokens: 8000
 #
-#  OpenAI o 系列：通过 reasoning_effort 控制推理力度
-#    reasoning_effort: medium  # low / medium / high
-#
-#  Google Gemini：通过 thinking_level 控制
-#    thinking_level: medium    # minimal / low / medium / high
-# ───────────────────────────────────────────────────────────────────
+#  OpenAI o 系列：通过 reasoning_effort 控制
+#    reasoning_effort: medium   # low / medium / high
+# ─────────────────────────────────────────────────────────────────────
+
+log_level: INFO   # DEBUG / INFO / WARNING / ERROR
 
 active_model: deepseek-chat
-
-review_model: deepseek-chat   # 复盘使用的模型；不填则复用 active_model
+review_model: deepseek-chat   # 技能复盘用模型；不填则复用 active_model
 
 active_sandbox: local-dev
 
-skills_dir: ./skills          # 技能文件目录（内置+用户混合）
+skills_dir: ../skills
+output_dir: ../sandbox/output
 
+
+# ── 聊天平台接入 ───────────────────────────────────────────────────────
+# 飞书接入需同时在 .env 设置 FEISHU_ENABLED=true 及相关密钥
+platforms:
+  - name: feishu
+    transport: websocket    # websocket（无需公网）或 webhook
+
+
+# ── 技能库馆长 ─────────────────────────────────────────────────────────
+curator:
+  enabled: true
+  interval_hours: 24          # 执行间隔（小时）
+  stale_after_days: 30        # 超过此天数未使用视为过时
+  min_use_count_to_protect: 3 # use_count 低于此值才进行归档检查
+
+
+# ── 沙箱配置 ──────────────────────────────────────────────────────────
 sandboxes:
-  - name: aios-local
+  - name: local-dev           # 本地沙箱（开发推荐）
+    provider: local
+    workspace_dir: ./sandbox
+    timeout: 120
+    idle_timeout: 1800
+
+  - name: aios-local          # AIO Sandbox 本地模式
     provider: aios
     image: enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox
     workspace_dir: /home/gem
     timeout: 60
     auto_start: true
-  - name: aios-remote
-    provider: aios
-    base_url: http://localhost:8080   # 连接已有 AIO Sandbox 实例
-    workspace_dir: /home/gem
-    timeout: 60
-    auto_start: false
-  - name: local-dev
-    provider: local
-    workspace_dir: ./sandbox
-    timeout: 120
-    idle_timeout: 1800
-  - name: cloud-daytona
-    provider: daytona
-    api_key: $DAYTONA_API_KEY
-    api_url: https://app.daytona.io/api
+    idle_timeout: 30
+
+  # - name: cloud-daytona     # Daytona 云沙箱
+  #   provider: daytona
+  #   api_key: $DAYTONA_API_KEY
+  #   api_url: https://app.daytona.io/api
 
 
+# ── 外部知识来源 ───────────────────────────────────────────────────────
+# 定期拉取文档写入 raw/，再经 ingest 编译进 wiki
+knowledge_sources:
+  - name: github-ai
+    type: github
+    schedule: "0 8 * * *"       # 每天早上 8 点
+    token: $GITHUB_TOKEN         # 可选，有 token 速率限制更高（5000/h vs 60/h）
+    repos:
+      - langchain-ai/langchain
+      - langchain-ai/langgraph
+      - langchain-ai/langchain-community
+      - anthropics/anthropic-sdk-python
+      - openai/openai-python
+      - microsoft/autogen
+      - crewAIInc/crewAI
+    fetch:
+      readme: true               # 拉取 README
+      releases: 3                # 最近 N 条 release notes
+
+  # ── 飞书知识库（有飞书 wiki 时启用）──────────────────────────────
+  # - name: feishu-wiki
+  #   type: feishu_wiki
+  #   space_id: "YOUR_SPACE_ID"  # GET /wiki/v2/spaces/ 查询
+  #   app_id: $FEISHU_APP_ID     # 选填，默认读 .env FEISHU_APP_ID
+  #   app_secret: $FEISHU_APP_SECRET
+  #   schedule: "0 2 * * *"      # 每天凌晨 2 点
+  #   page_limit: 50
+
+
+# ── 用户画像 ──────────────────────────────────────────────────────────
+# 每周自动汇总 Claude Code 会话，生成 wiki/user/profile.md
+# 注入主 agent 系统提示词，实现 agent 个性化
+activity_profile:
+  enabled: true
+  schedule: "0 9 * * 1"   # 每周一 09:00
+  lookback_days: 7
+  sources:
+    - type: claude_code_logs
+
+
+# ── 模型配置 ──────────────────────────────────────────────────────────
 models:
   # ── DeepSeek ─────────────────────────────────────────────────────
   - name: deepseek-chat
@@ -64,7 +116,7 @@ models:
     max_tokens: 4096
     max_retries: 2
 
-  - name: deepseek-reasoner            # R1 推理模型：始终输出思考内容，多轮需回传 reasoning_content
+  - name: deepseek-reasoner   # R1 推理模型，始终输出思考内容
     use: choreo.models.patched_openai:PatchedChatOpenAI
     model: deepseek-reasoner
     api_key: $DEEPSEEK_API_KEY
@@ -88,16 +140,16 @@ models:
   #   model: claude-sonnet-4-6
   #   api_key: $ANTHROPIC_API_KEY
   #   max_tokens: 16000
-  #   thinking:                          # 开启 Extended Thinking
+  #   thinking:
   #     type: enabled
   #     budget_tokens: 8000
 
-  # ── OpenAI o 系列（需安装 langchain-openai）──────────────────────
+  # ── OpenAI o 系列 ──────────────────────────────────────────────────
   # - name: o3-mini
   #   use: langchain_openai:ChatOpenAI
   #   model: o3-mini
   #   api_key: $OPENAI_API_KEY
-  #   reasoning_effort: medium           # low / medium / high
+  #   reasoning_effort: medium
 
   # ── Ollama 本地（无需 key）────────────────────────────────────────
   # - name: ollama-qwen
@@ -105,3 +157,10 @@ models:
   #   model: qwen2.5:14b
   #   api_key: ollama
   #   base_url: http://localhost:11434/v1
+
+  # ── Google Gemini（需安装 langchain-google-genai）─────────────────
+  # - name: gemini-flash
+  #   use: langchain_google_genai:ChatGoogleGenerativeAI
+  #   model: gemini-2.0-flash
+  #   api_key: $GEMINI_API_KEY
+  #   thinking_level: medium

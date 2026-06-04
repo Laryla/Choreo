@@ -38,14 +38,13 @@ PROVIDERS: dict[str, str] = {
 # 不传给沙箱构造函数的内部保留字段
 _RESERVED_KEYS = {"name", "provider", "idle_timeout"}
 
-# 加载 config.yaml 时的默认路径（相对于本包向上两级）
-_DEFAULT_YAML = Path(__file__).parent.parent.parent / "config.yaml"
-
-
 def _load_yaml(yaml_path: str | Path | None) -> dict:
-    path = Path(yaml_path) if yaml_path else _DEFAULT_YAML
-    with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+    """yaml_path 不为 None 时直接读文件（测试用），否则从 settings 取。"""
+    if yaml_path is not None:
+        with open(yaml_path, encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    from choreo.config import settings
+    return {"active_sandbox": settings.ACTIVE_SANDBOX, "sandboxes": settings.SANDBOXES}
 
 
 def _import_provider_class(provider: str) -> type:

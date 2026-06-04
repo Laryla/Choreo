@@ -5,7 +5,7 @@ import Topbar from "@/components/Topbar/Topbar";
 import {
   useRawFiles, useWikiList, useKBGraph, useKBLog, useWikiPage,
   useOutputs, useOutputFile,
-  uploadRaw, triggerIngest, triggerLint, triggerProfileUpdate,
+  uploadRaw, triggerIngest, triggerLint, triggerProfileUpdate, triggerPullSources,
   type WikiPageMeta,
 } from "@/hooks/useKnowledge";
 
@@ -193,6 +193,7 @@ function RawView() {
   const [uploading, setUploading] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [profiling, setProfiling] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const { data: report } = useOutputFile(selectedReport);
 
@@ -230,6 +231,15 @@ function RawView() {
     }
   };
 
+  const handlePullSources = async () => {
+    setPulling(true);
+    try {
+      await triggerPullSources();
+    } finally {
+      setTimeout(() => setPulling(false), 2000);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full p-6 gap-4">
       <div className="flex items-center gap-3">
@@ -249,6 +259,13 @@ function RawView() {
           className="text-xs px-3 py-1.5 rounded-lg bg-[#e6e2da] dark:bg-[#1e1e1e] border border-[#d6d0c7] dark:border-[#2a2a2a] hover:opacity-80"
         >
           Lint 检查
+        </button>
+        <button
+          onClick={handlePullSources}
+          disabled={pulling}
+          className="text-xs px-3 py-1.5 rounded-lg bg-[#10b981] text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {pulling ? "拉取中…" : "拉取外部源"}
         </button>
         <button
           onClick={handleUpdateProfile}

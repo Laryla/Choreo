@@ -1,11 +1,10 @@
-from pathlib import Path
-import yaml
+import os
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-router = APIRouter()
+from choreo.config import settings
 
-_CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "config.yaml"
+router = APIRouter()
 
 
 class ModelInfo(BaseModel):
@@ -16,11 +15,9 @@ class ModelInfo(BaseModel):
 
 @router.get("/", response_model=list[ModelInfo])
 async def list_models():
-    with open(_CONFIG_PATH, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
     seen = set()
     result = []
-    for m in cfg.get("models", []):
+    for m in settings.MODELS:
         name = m.get("name")
         if name and name not in seen:
             seen.add(name)
@@ -34,8 +31,5 @@ async def list_models():
 
 @router.get("/active")
 async def get_active_model():
-    with open(_CONFIG_PATH, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-    import os
-    active = os.getenv("CHOREO_MODEL_NAME") or cfg.get("active_model", "")
+    active = os.getenv("CHOREO_MODEL_NAME") or settings.ACTIVE_MODEL
     return {"active_model": active}

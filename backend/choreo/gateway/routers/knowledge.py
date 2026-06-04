@@ -1,3 +1,4 @@
+import logging
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 from choreo.config import settings
 from choreo.kb.graph_parser import parse_graph
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _ALLOWED_EXTS = {
@@ -191,6 +193,31 @@ async def trigger_ingest(background_tasks: BackgroundTasks):
 async def trigger_lint(background_tasks: BackgroundTasks):
     background_tasks.add_task(_run_lint)
     return {"status": "started"}
+
+
+@router.post("/pull-sources", status_code=202)
+async def trigger_pull_sources(background_tasks: BackgroundTasks):
+    """手动触发所有外部知识来源拉取（写入 raw/）。"""
+    background_tasks.add_task(_run_pull_sources)
+    return {"status": "started", "message": "知识来源拉取已启动，完成后写入 raw/"}
+
+
+async def _run_pull_sources() -> None:
+    try:
+        from choreo.config import settings
+        from choreo.knowledge_sources.factory import load_sources
+        from choreo.knowledge_sources.puller import pull_once
+
+        configs: list[dict] = settings.KNOWLEDGE_SOURCES or []
+        if not configs:
+            logger.warning("KNOWLEDGE_SOURCES 未配置，跳过拉取")
+            return
+        adapters = load_sources(configs)
+        kb_root = Path(settings.KNOWLEDGE_BASE_DIR).expanduser()
+        stats = await pull_once(adapters, kb_root)
+        logger.info("知识来源拉取完成: %s", stats)
+    except Exception as exc:
+        logger.error("知识来源拉取失败: %r", exc)
 
 
 @router.post("/update-profile", status_code=202)

@@ -89,3 +89,7 @@ export async function triggerLint(): Promise<void> {
 export async function triggerProfileUpdate(): Promise<void> {
   await apiFetch("/api/kb/update-profile", { method: "POST" });
 }
+
+export async function triggerPullSources(): Promise<void> {
+  await apiFetch("/api/kb/pull-sources", { method: "POST" });
+}

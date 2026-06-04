@@ -324,11 +324,6 @@ async def _run_curator_agent(skill_index: str) -> tuple[list[str], list[dict]]:
 
 def _load_curator_model():
     from choreo.model_factory import load_model
-    yaml_path = Path(__file__).parent.parent.parent / "config.yaml"
-    try:
-        with open(yaml_path, encoding="utf-8") as f:
-            cfg = yaml.safe_load(f)
-        curator_model = cfg.get("curator", {}).get("model")
-    except Exception:
-        curator_model = None
+    from choreo.config import settings
+    curator_model = (settings.CURATOR or {}).get("model") or None
     return load_model(curator_model)

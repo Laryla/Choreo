@@ -91,13 +91,8 @@ async def _run_review_with_pending(thread_id: str, messages: list, invoked_skill
 
 def _load_review_model():
     from choreo.model_factory import load_model
-    yaml_path = Path(__file__).parent.parent.parent / "config.yaml"
-    try:
-        with open(yaml_path, encoding="utf-8") as f:
-            cfg = yaml.safe_load(f)
-        review_model_name = cfg.get("review_model")
-    except Exception:
-        review_model_name = None
+    from choreo.config import settings
+    review_model_name = settings.REVIEW_MODEL or None
     return load_model(review_model_name)
 
 
