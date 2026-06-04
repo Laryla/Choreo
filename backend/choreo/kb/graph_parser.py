@@ -36,7 +36,10 @@ def parse_graph(kb_dir: str) -> dict:
     nodes: list[dict] = []
     edges: list[dict] = []
 
+    _content_dirs = {"concepts", "entities", "sources", "comparisons"}
     for md_file in sorted(wiki_dir.rglob("*.md")):
+        if md_file.relative_to(wiki_dir).parts[0] not in _content_dirs:
+            continue
         content = md_file.read_text(errors="replace")
         fm = _extract_frontmatter(content)
         page_id = str(md_file.relative_to(wiki_dir))
