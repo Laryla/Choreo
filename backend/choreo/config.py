@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     CHOREO_SANDBOX_TIMEOUT: int = 120
     CHOREO_SANDBOX_WORKDIR: str = "./sandbox"
 
+    # 知识库
+    KNOWLEDGE_BASE_DIR: str = "./knowledge"
+
     # Auth
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
