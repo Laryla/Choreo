@@ -19,6 +19,9 @@ frontend/.vite/
 # 沙箱工作目录
 sandbox/
 
+# 个人知识库（本地数据，不入库）
+knowledge/
+
 # skill
 skills
 
