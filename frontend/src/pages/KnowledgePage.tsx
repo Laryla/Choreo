@@ -23,18 +23,26 @@ function GraphView() {
 
   useEffect(() => {
     if (!data || !svgRef.current) return;
-    const width = svgRef.current.clientWidth;
-    const height = svgRef.current.clientHeight;
+    const width = svgRef.current.clientWidth || 800;
+    const height = svgRef.current.clientHeight || 600;
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
+    // edge.source = 文件路径（"concepts/rag.md"）
+    // edge.target = wikilink 原始文本（"LlamaIndex"），需要映射到 node.id
+    const labelToId = new Map(data.nodes.map((n) => [n.label, n.id]));
+    const nodeIds = new Set(data.nodes.map((n) => n.id));
+    const resolvedEdges = data.edges
+      .map((e) => ({ source: e.source, target: labelToId.get(e.target) ?? e.target }))
+      .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+
     const simulation = d3.forceSimulation(data.nodes as any)
-      .force("link", d3.forceLink(data.edges).id((d: any) => d.label).distance(80))
-      .force("charge", d3.forceManyBody().strength(-200))
+      .force("link", d3.forceLink(resolvedEdges).id((d: any) => d.id).distance(100))
+      .force("charge", d3.forceManyBody().strength(-300))
       .force("center", d3.forceCenter(width / 2, height / 2));
 
     const link = svg.append("g").selectAll("line")
-      .data(data.edges).join("line")
+      .data(resolvedEdges).join("line")
       .attr("stroke", "#ccc").attr("stroke-width", 1);
 
     const node = svg.append("g").selectAll("circle")
