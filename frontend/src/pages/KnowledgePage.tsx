@@ -79,6 +79,51 @@ function GraphView() {
       .attr("pointer-events", "none")
       .attr("dy", -12);
 
+    // hover：实线高亮直连边，非直连边变虚线淡化
+    const edgeId = (e: any) => ({
+      s: typeof e.source === "object" ? e.source.id : e.source,
+      t: typeof e.target === "object" ? e.target.id : e.target,
+    });
+
+    node
+      .on("mouseenter", (_event, hovered: any) => {
+        const connected = new Set<string>([hovered.id]);
+        link.each((e: any) => {
+          const { s, t } = edgeId(e);
+          if (s === hovered.id || t === hovered.id) { connected.add(s); connected.add(t); }
+        });
+
+        link
+          .attr("stroke", (e: any) => {
+            const { s, t } = edgeId(e);
+            return (s === hovered.id || t === hovered.id) ? "#6366f1" : "#ccc";
+          })
+          .attr("stroke-width", (e: any) => {
+            const { s, t } = edgeId(e);
+            return (s === hovered.id || t === hovered.id) ? 2 : 1;
+          })
+          .attr("stroke-dasharray", (e: any) => {
+            const { s, t } = edgeId(e);
+            return (s === hovered.id || t === hovered.id) ? null : "5,4";
+          })
+          .attr("stroke-opacity", (e: any) => {
+            const { s, t } = edgeId(e);
+            return (s === hovered.id || t === hovered.id) ? 1 : 0.2;
+          });
+
+        node.attr("opacity", (n: any) => connected.has(n.id) ? 1 : 0.2);
+        label.attr("opacity", (n: any) => connected.has(n.id) ? 1 : 0.2);
+      })
+      .on("mouseleave", () => {
+        link
+          .attr("stroke", "#ccc")
+          .attr("stroke-width", 1)
+          .attr("stroke-dasharray", null)
+          .attr("stroke-opacity", 1);
+        node.attr("opacity", 1);
+        label.attr("opacity", 1);
+      });
+
     simulation.on("tick", () => {
       link.attr("x1", (d: any) => d.source.x).attr("y1", (d: any) => d.source.y)
           .attr("x2", (d: any) => d.target.x).attr("y2", (d: any) => d.target.y);
