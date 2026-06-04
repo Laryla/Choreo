@@ -32,7 +32,7 @@ class ClaudeCodeCollector(BaseCollector):
     def __init__(self, claude_projects_dir: Path | None = None) -> None:
         self._dir = claude_projects_dir or _DEFAULT_PROJECTS_DIR
 
-    async def collect(self, since: datetime) -> str:
+    async def collect(self, since: datetime, max_chars: int = 40_000) -> str:
         if not self._dir.exists():
             return ""
 
@@ -46,7 +46,7 @@ class ClaudeCodeCollector(BaseCollector):
             if not sessions:
                 continue
 
-            content = await self._run_cc_log(project_dir)
+            content = await self._run_cc_log(project_dir, since)
             total_msgs = sum(s.get("message_count", 0) for s in sessions)
             project_name = project_dir.name.replace("-", "/").strip("/")
 
@@ -59,7 +59,10 @@ class ClaudeCodeCollector(BaseCollector):
 
         start = since.strftime("%Y-%m-%d")
         end = datetime.now().strftime("%Y-%m-%d")
-        return f"=== Claude Code 会话（{start} ~ {end}）===\n\n" + "\n\n---\n\n".join(parts)
+        result = f"=== Claude Code 会话（{start} ~ {end}）===\n\n" + "\n\n---\n\n".join(parts)
+        if len(result) > max_chars:
+            result = result[:max_chars] + f"\n\n...（已截断，原始长度 {len(result)} 字符）"
+        return result
 
     def _recent_sessions(self, index_path: Path, since: datetime) -> list[dict]:
         since_ts = since.timestamp()
@@ -92,7 +95,7 @@ class ClaudeCodeCollector(BaseCollector):
         ]
         return [{"session_id": f.stem} for f in recent_jsonl]
 
-    async def _run_cc_log(self, project_dir: Path) -> str:
+    async def _run_cc_log(self, project_dir: Path, since: datetime) -> str:
         import tempfile
         tmp_file = None
         try:
@@ -100,11 +103,13 @@ class ClaudeCodeCollector(BaseCollector):
             with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as f:
                 tmp_file = Path(f.name)
 
+            from_date = since.strftime("%Y-%m-%d")
             proc = await asyncio.create_subprocess_exec(
                 "claude-code-log",
                 "--format", "md",
                 "--detail", "low",
                 "--compact",
+                "--from-date", from_date,
                 "--output", str(tmp_file),
                 str(project_dir),
                 stdout=asyncio.subprocess.DEVNULL,
