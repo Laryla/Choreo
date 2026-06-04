@@ -72,7 +72,7 @@ async def read_wiki(page_path: str):
 
 @router.get("/outputs/")
 async def list_outputs():
-    outputs_dir = _kb_root() / "outputs"
+    outputs_dir = _kb_root() / "wiki" / "outputs"
     outputs_dir.mkdir(parents=True, exist_ok=True)
     return [
         {"name": f.name, "size": f.stat().st_size, "modified_at": int(f.stat().st_mtime)}
@@ -83,7 +83,7 @@ async def list_outputs():
 
 @router.get("/outputs/{filename}")
 async def read_output(filename: str):
-    outputs_dir = _kb_root() / "outputs"
+    outputs_dir = _kb_root() / "wiki" / "outputs"
     target = (outputs_dir / filename).resolve()
     if not str(target).startswith(str(outputs_dir.resolve())):
         raise HTTPException(400, "非法路径")
