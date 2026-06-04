@@ -224,8 +224,8 @@ function RawView() {
     <div className="flex flex-col h-full p-6 gap-4">
       <div className="flex items-center gap-3">
         <label className="text-xs px-3 py-1.5 rounded-lg bg-[#e6e2da] dark:bg-[#1e1e1e] border border-[#d6d0c7] dark:border-[#2a2a2a] cursor-pointer hover:opacity-80">
-          {uploading ? "上传中…" : "上传 .md 文件"}
-          <input type="file" accept=".md" className="hidden" onChange={handleUpload} />
+          {uploading ? "上传中…" : "上传文件（PDF/DOCX/MD…）"}
+          <input type="file" accept=".md,.txt,.pdf,.docx,.pptx,.xlsx,.html,.htm,.csv,.json,.xml" className="hidden" onChange={handleUpload} />
         </label>
         <button
           onClick={handleIngest}

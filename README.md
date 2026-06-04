@@ -48,6 +48,8 @@ Choreo 跨会话记住对你重要的东西，而不是每次都失忆：
 受 Karpathy 2026/04 LLM Wiki 思路启发，把你的工作记录和原始资料「编译」成结构化、互相链接的 wiki：
 
 - **LLM 当编译器**：把原始资料（笔记、任务输出、拉取的外部文档）丢进 `raw/`，agent 自动整理成每个概念一页的结构化 wiki，用 `[[wiki-link]]` 互相引用——知识库本身就是知识，无需向量检索。
+- **多格式上传**：支持 PDF / DOCX / PPTX / XLSX / HTML / CSV 等格式，借助 [markitdown](https://github.com/microsoft/markitdown) 自动转换为 Markdown 后写入 `raw/`，无需手动转换。
+- **专用编译 Agent**：ingest / lint 使用独立的 `create_kb_agent()`，只暴露 `kb_*` 工具，彻底隔离沙箱工具干扰；编译时自动注入当前 wiki 索引与最新 lint 报告，让 agent 优先补全缺失页面。
 - **知识图谱可视化**：解析 wiki 页面里的 `[[实体链接]]` 即得图谱，D3 力导向图展示实体关系，支持拖拽平移、滚轮缩放、hover 高亮（实线直连 / 虚线淡化）。
 - **Agent 工具集成**：`kb_grep` 搜索 wiki、`kb_read` 读取页面、`kb_add_raw` 归档资料，agent 执行任务前可主动检索相关背景知识。
 - **工作流自动归档**：定时任务配置 `archive_to_kb: true` 后，任务输出自动写入 `raw/`，下次编译时沉淀进 wiki。

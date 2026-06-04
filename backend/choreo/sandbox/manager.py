@@ -129,6 +129,8 @@ class SandboxManager:
         if destruction fails.
         """
         sandbox = self._registry.pop(thread_id, None)
+        self._last_used.pop(thread_id, None)
+        self._locks.pop(thread_id, None)
         if sandbox is None:
             return
 
@@ -140,9 +142,6 @@ class SandboxManager:
                 thread_id,
                 exc,
             )
-        finally:
-            self._last_used.pop(thread_id, None)
-            self._locks.pop(thread_id, None)
 
     async def shutdown_all(self) -> None:
         """Destroy all managed sandboxes (e.g., on application shutdown)."""
