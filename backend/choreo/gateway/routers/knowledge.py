@@ -87,19 +87,18 @@ async def _run_ingest() -> None:
     from langchain_core.messages import HumanMessage
     from choreo.agents.choreo_agent import create_choreo_agent
     from choreo.kb.compiler_prompt import INGEST_PROMPT
-    kb_dir = str(_kb_root().resolve())
+    today = datetime.now().strftime("%Y-%m-%d")
     agent = create_choreo_agent(headless=True)
-    await agent.ainvoke({"messages": [HumanMessage(content=INGEST_PROMPT.format(kb_dir=kb_dir))]})
+    await agent.ainvoke({"messages": [HumanMessage(content=INGEST_PROMPT.format(today=today))]})
 
 
 async def _run_lint() -> None:
     from langchain_core.messages import HumanMessage
     from choreo.agents.choreo_agent import create_choreo_agent
     from choreo.kb.compiler_prompt import LINT_PROMPT
-    kb_dir = str(_kb_root().resolve())
     date = datetime.now().strftime("%Y-%m-%d")
     agent = create_choreo_agent(headless=True)
-    await agent.ainvoke({"messages": [HumanMessage(content=LINT_PROMPT.format(kb_dir=kb_dir, date=date))]})
+    await agent.ainvoke({"messages": [HumanMessage(content=LINT_PROMPT.format(date=date))]})
 
 
 @router.post("/ingest")

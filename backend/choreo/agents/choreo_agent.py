@@ -6,7 +6,11 @@ from choreo.agents.tools.mcp_tool import mcp_call, mcp_describe
 from choreo.agents.tools.skill_tool import skill_manager
 from choreo.agents.tools.task_tool import task
 from choreo.agents.tools.scheduled_task_tool import create_scheduled_task, list_scheduled_tasks
-from choreo.agents.tools.kb_tools import kb_grep, kb_read, kb_add_raw
+from choreo.agents.tools.kb_tools import (
+    kb_grep, kb_read, kb_add_raw,
+    kb_list_raw, kb_read_raw, kb_write_wiki,
+    kb_read_log, kb_append_log, kb_write_index,
+)
 from choreo.agents.prompt import build_system_prompt
 from choreo.agents.middlewares import (
     ModelCallLimitMiddleware, TitleMiddleware,
@@ -47,6 +51,8 @@ def create_choreo_agent(checkpointer=None, headless: bool = False):
             "send_notification",
             "skill_manager", "mcp_call", "mcp_describe",
             "kb_grep", "kb_read", "kb_add_raw",
+            "kb_list_raw", "kb_read_raw", "kb_write_wiki",
+            "kb_read_log", "kb_append_log", "kb_write_index",
         }
         _all = [
             task,
@@ -54,6 +60,8 @@ def create_choreo_agent(checkpointer=None, headless: bool = False):
             edit_file, list_dir, grep, bash, skill_manager,
             mcp_call, mcp_describe, web_search, fetch_url,
             kb_grep, kb_read, kb_add_raw,
+            kb_list_raw, kb_read_raw, kb_write_wiki,
+            kb_read_log, kb_append_log, kb_write_index,
         ]
         tools = [t for t in _all if t.name in _allowed]
         _compression = _make_compression_middleware()
@@ -88,6 +96,8 @@ def create_choreo_agent(checkpointer=None, headless: bool = False):
             mcp_call, mcp_describe,
             create_scheduled_task, list_scheduled_tasks,
             kb_grep, kb_read, kb_add_raw,
+            kb_list_raw, kb_read_raw, kb_write_wiki,
+            kb_read_log, kb_append_log, kb_write_index,
         ],
         system_prompt=build_system_prompt(),
         middleware=[
