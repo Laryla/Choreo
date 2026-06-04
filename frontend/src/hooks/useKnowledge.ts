@@ -85,3 +85,7 @@ export async function triggerLint(): Promise<void> {
   await apiFetch("/api/kb/lint", { method: "POST" });
   await mutate(KB_OUTPUTS_KEY);
 }
+
+export async function triggerProfileUpdate(): Promise<void> {
+  await apiFetch("/api/kb/update-profile", { method: "POST" });
+}
