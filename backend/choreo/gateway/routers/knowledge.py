@@ -191,3 +191,19 @@ async def trigger_ingest(background_tasks: BackgroundTasks):
 async def trigger_lint(background_tasks: BackgroundTasks):
     background_tasks.add_task(_run_lint)
     return {"status": "started"}
+
+
+@router.post("/update-profile", status_code=202)
+async def trigger_profile_update(background_tasks: BackgroundTasks):
+    """手动触发用户画像更新（异步后台执行）。"""
+    background_tasks.add_task(_run_profile_update)
+    return {"status": "started", "message": "用户画像更新已启动，完成后写入 wiki/user/profile.md"}
+
+
+async def _run_profile_update() -> None:
+    try:
+        from choreo.activity.profiler import update_profile
+        await update_profile()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("画像更新失败: %r", exc)
