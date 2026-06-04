@@ -36,31 +36,47 @@ function GraphView() {
       .map((e) => ({ source: e.source, target: labelToId.get(e.target) ?? e.target }))
       .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
 
+    // 所有图形元素放入可变换的容器 g，支持平移和缩放
+    const container = svg.append("g");
+
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 4])
+      .on("zoom", (event) => container.attr("transform", event.transform));
+
+    svg.call(zoom).on("dblclick.zoom", null);
+
     const simulation = d3.forceSimulation(data.nodes as any)
       .force("link", d3.forceLink(resolvedEdges).id((d: any) => d.id).distance(100))
       .force("charge", d3.forceManyBody().strength(-300))
       .force("center", d3.forceCenter(width / 2, height / 2));
 
-    const link = svg.append("g").selectAll("line")
+    const link = container.append("g").selectAll("line")
       .data(resolvedEdges).join("line")
       .attr("stroke", "#ccc").attr("stroke-width", 1);
 
-    const node = svg.append("g").selectAll("circle")
+    const node = container.append("g").selectAll("circle")
       .data(data.nodes).join("circle")
       .attr("r", 8)
       .attr("fill", (d) => TYPE_COLORS[d.type] ?? "#999")
-      .attr("cursor", "pointer")
+      .attr("cursor", "grab")
       .call((d3.drag<SVGCircleElement, any>()
-        .on("start", (event, d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on("start", (event, d) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x; d.fy = d.y;
+        })
         .on("drag", (event, d) => { d.fx = event.x; d.fy = event.y; })
-        .on("end", (event, d) => { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+        .on("end", (event, d) => {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null; d.fy = null;
+        })
       ) as any);
 
-    const label = svg.append("g").selectAll("text")
+    const label = container.append("g").selectAll("text")
       .data(data.nodes).join("text")
       .text((d) => d.label)
       .attr("font-size", 11)
       .attr("fill", "#555")
+      .attr("pointer-events", "none")
       .attr("dy", -12);
 
     simulation.on("tick", () => {
@@ -80,7 +96,7 @@ function GraphView() {
       </div>
     );
   }
-  return <svg ref={svgRef} className="w-full h-full" />;
+  return <svg ref={svgRef} className="w-full h-full" style={{ cursor: "move" }} />;
 }
 
 function WikiView() {
