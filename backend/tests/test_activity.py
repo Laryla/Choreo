@@ -79,3 +79,43 @@ class TestClaudeCodeCollector:
         collector = ClaudeCodeCollector(claude_projects_dir=tmp_path / "nonexistent")
         result = await collector.collect(datetime.now() - timedelta(days=7))
         assert result == ""
+
+
+class TestCollectAll:
+    @pytest.mark.asyncio
+    async def test_无采集器时返回空字符串(self):
+        from choreo.activity.profiler import collect_all
+
+        with patch("choreo.activity.profiler._get_collectors", return_value=[]):
+            result = await collect_all(lookback_days=7)
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_合并多个采集器输出(self):
+        from choreo.activity.collectors.base import BaseCollector
+        from choreo.activity.profiler import collect_all
+
+        class 假采集器(BaseCollector):
+            async def collect(self, since):
+                return "采集器输出"
+
+        with patch("choreo.activity.profiler._get_collectors", return_value=[假采集器(), 假采集器()]):
+            result = await collect_all(lookback_days=7)
+        assert result.count("采集器输出") == 2
+
+    @pytest.mark.asyncio
+    async def test_失败的采集器被跳过(self):
+        from choreo.activity.collectors.base import BaseCollector
+        from choreo.activity.profiler import collect_all
+
+        class 坏采集器(BaseCollector):
+            async def collect(self, since):
+                raise RuntimeError("网络错误")
+
+        class 好采集器(BaseCollector):
+            async def collect(self, since):
+                return "好的输出"
+
+        with patch("choreo.activity.profiler._get_collectors", return_value=[坏采集器(), 好采集器()]):
+            result = await collect_all(lookback_days=7)
+        assert "好的输出" in result
