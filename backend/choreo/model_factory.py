@@ -62,31 +62,28 @@ def _build_model(entry: dict) -> BaseChatModel:
 
 
 def load_model(name: str | None = None, yaml_path: str | Path | None = None) -> BaseChatModel:
+    """从 settings（config.yaml）加载指定名称的模型。
+
+    yaml_path: 仅测试用，不为 None 时绕过 settings 直接读指定 yaml 文件。
     """
-    从 config.yaml 加载指定名称的模型。
+    if yaml_path is not None:
+        # 测试/调试路径：直接读 yaml，自行做 $ENV_VAR 替换
+        with open(yaml_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        target = name or os.getenv("CHOREO_MODEL_NAME") or cfg.get("active_model", "")
+        all_models: list[dict] = cfg.get("models", [])
+    else:
+        # 正常路径：settings 已从 config.yaml 加载并做了 $ENV_VAR 替换
+        from choreo.config import settings
+        target = name or os.getenv("CHOREO_MODEL_NAME") or settings.ACTIVE_MODEL
+        all_models = settings.MODELS
 
-    Args:
-        name: 模型 name。None 时读取 CHOREO_MODEL_NAME 环境变量，
-              再回退到 yaml 的 active_model 字段。
-        yaml_path: yaml 文件路径，默认为项目根目录的 config.yaml。
-
-    Returns:
-        已实例化的 BaseChatModel 对象。
-    """
-    if yaml_path is None:
-        yaml_path = Path(__file__).parent.parent / "config.yaml"
-
-    with open(yaml_path, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-
-    target = name or os.getenv("CHOREO_MODEL_NAME") or cfg.get("active_model", "")
     if not target:
         raise ValueError("未指定模型名，请设置 active_model 或 CHOREO_MODEL_NAME")
 
-    models: list[dict] = cfg.get("models", [])
-    entry = next((m for m in models if m.get("name") == target), None)
+    entry = next((m for m in all_models if m.get("name") == target), None)
     if entry is None:
-        available = [m.get("name") for m in models]
+        available = [m.get("name") for m in all_models]
         raise ValueError(f"找不到模型 {target!r}，可用：{available}")
 
     return _build_model(entry)

@@ -1,29 +1,14 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-
-def _setup_logging() -> None:
-    try:
-        _cfg_path = Path(__file__).parents[3] / "config.yaml"
-        with open(_cfg_path) as _f:
-            import yaml as _y
-            _level_str = (_y.safe_load(_f) or {}).get("log_level", "INFO").upper()
-    except Exception:
-        _level_str = "INFO"
-    logging.basicConfig(
-        level=getattr(logging, _level_str, logging.INFO),
-        format="%(levelname)s %(name)s: %(message)s",
-    )
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-
-_setup_logging()
 from pathlib import Path
+
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-import yaml as _yaml
-from choreo.db import init_db
+
 from choreo.config import settings
+from choreo.db import init_db
 from choreo.agents import create_choreo_agent, set_agent
 from choreo.agents.registry import set_scheduler
 from choreo.scheduler import TaskScheduler
@@ -44,19 +29,27 @@ from choreo.channel import ChannelManager, make_channel_router
 from choreo.platforms.registry import platform_registry
 
 
+def _setup_logging() -> None:
+    logging.basicConfig(
+        level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
+        format="%(levelname)s %(name)s: %(message)s",
+    )
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+
+_setup_logging()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 0. 初始化 SkillStore 并同步内置技能
-    _cfg_path = Path(__file__).parent.parent.parent / "config.yaml"
-    with open(_cfg_path, encoding="utf-8") as _f:
-        _cfg = _yaml.safe_load(_f) or {}
-    _skills_root = Path(__file__).parent.parent.parent / _cfg.get("skills_dir", "./skills")
+    _skills_root = Path(__file__).parents[2] / settings.SKILLS_DIR
     _skill_store = LocalSkillStore(_skills_root)
     await sync_builtin_skills(_skill_store)
     set_skill_store(_skill_store)
 
     # 0b. 启动技能库馆长（后台定期整合）
-    _curator = SkillCurator(_cfg.get("curator") or {})
+    _curator = SkillCurator(settings.CURATOR)
     _curator.start()
 
     # 1. 建表（幂等）
@@ -74,26 +67,35 @@ async def lifespan(app: FastAPI):
     set_mcp_manager(mcp_manager)
     await mcp_manager.start()
 
-    # 4. 初始化 SandboxManager
+    # 3. 初始化 SandboxManager
     manager = SandboxManager()
     set_sandbox_manager(manager)
     eviction_task = asyncio.create_task(manager.evict_idle())
 
-    # 5. 初始化 PostgreSQL checkpointer，持久化 LangGraph 对话状态
+    # 4. 外部知识来源拉取调度器
+    from choreo.knowledge_sources.puller import start_pull_scheduler
+    pull_scheduler = start_pull_scheduler(settings.KNOWLEDGE_SOURCES)
+    app.state.pull_scheduler = pull_scheduler
+
+    # 5. 用户画像调度器
+    from choreo.activity.profiler import start_profile_scheduler
+    profile_scheduler = start_profile_scheduler(settings.ACTIVITY_PROFILE)
+    app.state.profile_scheduler = profile_scheduler
+
+    # 6. 初始化 PostgreSQL checkpointer，持久化 LangGraph 对话状态
     async with AsyncPostgresSaver.from_conn_string(
         settings.DATABASE_URL_PSYCOPG
     ) as checkpointer:
-        await checkpointer.setup()       # 自动建 checkpoint_* 表
+        await checkpointer.setup()
         set_agent(create_choreo_agent(checkpointer))
 
-        # 6. 初始化 ChannelManager，连接聊天平台
-        _platforms_cfg = _cfg.get("platforms") or []
+        # 7. 初始化 ChannelManager，连接聊天平台
         _channel_manager = ChannelManager()
         app.state.channel_manager = _channel_manager
         if settings.FEISHU_ENABLED:
             import choreo.platforms.feishu  # noqa: F401 — triggers self-registration
-        if _platforms_cfg and settings.FEISHU_ENABLED:
-            _adapters = platform_registry.load_from_config(_platforms_cfg)
+        if settings.PLATFORMS and settings.FEISHU_ENABLED:
+            _adapters = platform_registry.load_from_config(settings.PLATFORMS)
             for _adapter in _adapters:
                 _platform_name = _adapter._config.get("name", "unknown")
                 _channel_manager.register_adapter(_platform_name, _adapter)
@@ -104,6 +106,10 @@ async def lifespan(app: FastAPI):
         finally:
             await _channel_manager.stop_all()
             task_scheduler.shutdown()
+            if pull_scheduler is not None:
+                pull_scheduler.shutdown(wait=False)
+            if profile_scheduler is not None:
+                profile_scheduler.shutdown(wait=False)
 
     # 清理
     _curator.stop()

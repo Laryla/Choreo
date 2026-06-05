@@ -32,17 +32,26 @@ export interface Message {
   taskSteps?: Record<string, TaskSteps>   // task_id → TaskSteps
 }
 
+export interface SkillSuggestion {
+  category: string;
+  name: string;
+  description: string;
+  content_draft: string;
+}
+
 interface ChatState {
   messages: Message[];
   streamingContent: string;
   streamingThinking: string;
   streamingMsgId: string | null;
+  skillSuggestion: SkillSuggestion | null;
   addMessage: (msg: Omit<Message, "id">) => void;
   appendToken: (token: string) => void;
   appendThinking: (token: string) => void;
   finalizeToken: () => void;
   resetMessages: (msgs?: Omit<Message, "id">[]) => void;
   upsertTaskStep: (messageId: string, taskId: string, update: Partial<TaskSteps> & { step?: SubAgentStep }) => void;
+  setSkillSuggestion: (s: SkillSuggestion | null) => void;
 }
 
 const ChatContext = createContext<ChatState | null>(null);
@@ -52,6 +61,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingThinking, setStreamingThinking] = useState("");
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
+  const [skillSuggestion, setSkillSuggestion] = useState<SkillSuggestion | null>(null);
 
   const contentRef = useRef("");
   const thinkingRef = useRef("");
@@ -81,6 +91,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setStreamingContent("");
     setStreamingThinking("");
     setStreamingMsgId(null);
+    setSkillSuggestion(null);
   };
 
   const finalizeToken = () => {
@@ -138,12 +149,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         streamingContent,
         streamingThinking,
         streamingMsgId,
+        skillSuggestion,
         addMessage,
         appendToken,
         appendThinking,
         finalizeToken,
         resetMessages,
         upsertTaskStep,
+        setSkillSuggestion,
       }}
     >
       {children}

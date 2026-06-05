@@ -1,0 +1,30 @@
+{
+  "name": "@choreo/cli",
+  "version": "0.1.0",
+  "description": "Choreo AI assistant CLI",
+  "type": "module",
+  "bin": {
+    "choreo": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup src/index.ts --format esm --dts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@langchain/langgraph-sdk": "^1.9.16",
+    "chalk": "^5.4.1",
+    "commander": "^12.1.0",
+    "inquirer": "^9.3.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

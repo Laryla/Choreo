@@ -1,0 +1,111 @@
+import ReactMarkdown from "react-markdown";
+import { useWikiPage, useRawFile } from "@/hooks/useKnowledge";
+import type { WikiPageMeta, RawFile } from "@/hooks/useKnowledge";
+
+type SelectedItem = { kind: "wiki"; data: WikiPageMeta } | { kind: "raw"; data: RawFile };
+
+interface Props {
+  item: SelectedItem | null;
+  onClose: () => void;
+}
+
+function extractSources(content: string): string[] {
+  const matches = [...content.matchAll(/\[\[([^\]]+)\]\]/g)];
+  return [...new Set(matches.map((m) => m[1].trim()))];
+}
+
+function WikiDetail({ page, onClose }: { page: WikiPageMeta; onClose: () => void }) {
+  const { data } = useWikiPage(page.path);
+  const sources = data ? extractSources(data.content) : [];
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3 p-4 border-b border-[#e6e2da] dark:border-[#2d2d48]">
+        <h2 className="text-base font-bold text-[#1a1a1a] dark:text-[#e2e8f0] leading-snug">{page.name}</h2>
+        <button
+          onClick={onClose}
+          className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded text-[#aaa] hover:text-[#555] dark:hover:text-[#e2e8f0] bg-[#f5f2eb] dark:bg-[#22223a] border border-[#e6e2da] dark:border-[#3a3a55] text-xs"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        {data ? (
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown>{data.content}</ReactMarkdown>
+          </div>
+        ) : (
+          <div className="text-sm text-[#aaa] dark:text-[#475569]">加载中…</div>
+        )}
+      </div>
+      {sources.length > 0 && (
+        <div className="px-4 pt-3 pb-4 border-t border-[#e6e2da] dark:border-[#2d2d48] flex-shrink-0">
+          <p className="text-[10px] uppercase tracking-wide text-[#aaa] dark:text-[#475569] font-semibold mb-2">
+            引用来源 · {sources.length}
+          </p>
+          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+            {sources.map((src) => {
+              const label = src.includes("|") ? src.split("|")[0].trim() : src;
+              return (
+                <span
+                  key={src}
+                  title={src}
+                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-[#f0ece3] dark:bg-[#22223a] border border-[#e6e2da] dark:border-[#3a3a55] text-[#555] dark:text-[#94a3b8] max-w-[140px] truncate"
+                >
+                  🔗 {label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function RawDetail({ file, onClose }: { file: RawFile; onClose: () => void }) {
+  const { data } = useRawFile(file.name);
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3 p-4 border-b border-[#e6e2da] dark:border-[#2d2d48]">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-bold text-[#1a1a1a] dark:text-[#e2e8f0] leading-snug truncate">{file.name}</h2>
+          <span className="text-[11px] text-[#888] dark:text-[#64748b] mt-1 block">
+            {(file.size / 1024).toFixed(1)} KB
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded text-[#aaa] hover:text-[#555] dark:hover:text-[#e2e8f0] bg-[#f5f2eb] dark:bg-[#22223a] border border-[#e6e2da] dark:border-[#3a3a55] text-xs"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        {data ? (
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown>{data.content}</ReactMarkdown>
+          </div>
+        ) : (
+          <div className="text-sm text-[#aaa] dark:text-[#475569]">加载中…</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+export default function DetailPanel({ item, onClose }: Props) {
+  const visible = item !== null;
+
+  return (
+    <div
+      className={`flex flex-col flex-shrink-0 bg-white dark:bg-[#16162a] border-l border-[#e6e2da] dark:border-[#2d2d48] overflow-hidden transition-all duration-200 ${
+        visible ? "w-96 translate-x-0" : "w-0 translate-x-full"
+      }`}
+    >
+      {item?.kind === "wiki" && <WikiDetail page={item.data} onClose={onClose} />}
+      {item?.kind === "raw" && <RawDetail file={item.data} onClose={onClose} />}
+    </div>
+  );
+}

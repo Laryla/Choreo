@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import BigInteger, Boolean, String, JSON, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Integer, String, Text, JSON, UniqueConstraint
 from choreo.config import settings
 import uuid as _uuid
 import time
@@ -96,6 +96,18 @@ class ChannelRow(Base):
     __table_args__ = (
         UniqueConstraint("platform", "chat_id", name="uq_channel_platform_chat"),
     )
+
+
+class SkillSuggestionRow(Base):
+    __tablename__ = "skill_suggestions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    thread_id: Mapped[str] = mapped_column(String, index=True)
+    category: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String)
+    description: Mapped[str] = mapped_column(String)
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=lambda: int(time.time()))
 
 
 async def init_db():

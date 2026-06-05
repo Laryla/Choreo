@@ -18,7 +18,7 @@ export function useChat(initialThreadId?: string) {
     setCurrentThreadId(initialThreadId ?? null);
   }, [initialThreadId]);
 
-  const { addMessage, appendToken, appendThinking, finalizeToken, upsertTaskStep, streamingMsgId } = useChatStore();
+  const { addMessage, appendToken, appendThinking, finalizeToken, upsertTaskStep, streamingMsgId, setSkillSuggestion } = useChatStore();
 
   const streamingMsgIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -41,6 +41,7 @@ export function useChat(initialThreadId?: string) {
 
     try {
       const tid = await ensureThread();
+      const streamTid = tid; // 记录本次 stream 归属的线程
       const stream = client.runs.stream(tid, "choreo", {
         input: { messages: [{ role: "user", content: text }] },
         streamMode: ["messages", "updates", "custom", "tasks", "values"],
@@ -50,6 +51,8 @@ export function useChat(initialThreadId?: string) {
       let reviewStarted = false;
 
       for await (const chunk of stream as any) {
+        // 线程已切走，丢弃旧 stream 的输出
+        if (threadIdRef.current !== streamTid) break;
         // ── LLM token 流 ─────────────────────────────────────────
         if (chunk.event === "messages") {
           const msgs: any[] = Array.isArray(chunk.data) ? chunk.data : [chunk.data];
@@ -137,6 +140,12 @@ export function useChat(initialThreadId?: string) {
               break;
             }
           }
+        }
+
+        // ── 技能建议事件 ─────────────────────────────────────────
+        if (chunk.event === "skill_suggestion") {
+          setSkillSuggestion(chunk.data);
+          continue;
         }
 
         // ── 自定义进度事件（middleware 发出）──────────────────────

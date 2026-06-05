@@ -6,7 +6,7 @@ from choreo.store.thread_store import thread_store
 from choreo.agents.middlewares import store_decision
 from choreo.agents import get_agent
 from choreo.auth.deps import get_current_user_id
-from choreo.db import SessionLocal, ThreadRow
+from choreo.db import SessionLocal, ThreadRow, SkillSuggestionRow
 
 router = APIRouter()
 
@@ -71,3 +71,75 @@ async def get_thread_messages(thread_id: str, user_id: str = Depends(get_current
                 result.append({"role": "assistant", "content": str(content)})
 
     return result
+
+
+# ── Skill Suggestion endpoints ───────────────────────────────────────────────
+
+@router.get("/{thread_id}/skill-suggestion")
+async def get_skill_suggestion(
+    thread_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """返回该线程最新待确认的技能建议（无则返回 null）。"""
+    await _assert_thread_owned(thread_id, user_id)
+    from sqlalchemy import select
+    async with SessionLocal() as db:
+        row = (await db.execute(
+            select(SkillSuggestionRow)
+            .where(SkillSuggestionRow.thread_id == thread_id)
+            .order_by(SkillSuggestionRow.id.desc())
+            .limit(1)
+        )).scalar_one_or_none()
+    if not row:
+        return None
+    return {
+        "id": row.id,
+        "category": row.category,
+        "name": row.name,
+        "description": row.description,
+        "content_draft": row.content,
+    }
+
+
+@router.post("/{thread_id}/skill-suggestion/accept", status_code=201)
+async def accept_skill_suggestion(
+    thread_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """用户确认保存：创建技能，删除建议行。"""
+    await _assert_thread_owned(thread_id, user_id)
+    from sqlalchemy import select, delete as _delete
+    async with SessionLocal() as db:
+        row = (await db.execute(
+            select(SkillSuggestionRow)
+            .where(SkillSuggestionRow.thread_id == thread_id)
+            .order_by(SkillSuggestionRow.id.desc())
+            .limit(1)
+        )).scalar_one_or_none()
+        if not row:
+            raise HTTPException(404, "suggestion not found")
+        from choreo.skills import get_skill_store
+        from choreo.skills.models import SkillCreate
+        skill = await get_skill_store().create(SkillCreate(
+            category=row.category,
+            name=row.name,
+            description=row.description,
+            content=row.content,
+            tags=[],
+        ))
+        await db.execute(_delete(SkillSuggestionRow).where(SkillSuggestionRow.thread_id == thread_id))
+        await db.commit()
+    return {"skill_id": skill.id, "name": skill.name}
+
+
+@router.post("/{thread_id}/skill-suggestion/dismiss", status_code=204)
+async def dismiss_skill_suggestion(
+    thread_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """用户忽略：删除建议行。"""
+    await _assert_thread_owned(thread_id, user_id)
+    from sqlalchemy import delete as _delete
+    async with SessionLocal() as db:
+        await db.execute(_delete(SkillSuggestionRow).where(SkillSuggestionRow.thread_id == thread_id))
+        await db.commit()

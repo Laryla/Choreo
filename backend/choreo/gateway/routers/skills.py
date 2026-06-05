@@ -83,18 +83,9 @@ async def trigger_curator():
     """Manually trigger a curator cycle (runs in background)."""
     import asyncio
     from choreo.skills.curator import SkillCurator
-    import yaml
-    from pathlib import Path
+    from choreo.config import settings
 
-    cfg_path = Path(__file__).parent.parent.parent.parent / "config.yaml"
-    try:
-        with open(cfg_path, encoding="utf-8") as f:
-            cfg = yaml.safe_load(f) or {}
-        curator_cfg = cfg.get("curator") or {}
-    except Exception:
-        curator_cfg = {}
-
-    curator = SkillCurator(curator_cfg)
+    curator = SkillCurator(settings.CURATOR)
 
     async def _run():
         try:

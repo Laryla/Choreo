@@ -1,3 +1,6 @@
+import asyncio
+import logging
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +11,7 @@ from pydantic import BaseModel
 from choreo.config import settings
 from choreo.kb.graph_parser import parse_graph
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _ALLOWED_EXTS = {
@@ -36,6 +40,17 @@ async def list_raw():
         for f in sorted(raw_dir.iterdir())
         if f.is_file()
     ]
+
+
+@router.get("/raw/{filename}")
+async def read_raw(filename: str):
+    raw_dir = _kb_root() / "raw"
+    target = (raw_dir / filename).resolve()
+    if not str(target).startswith(str(raw_dir.resolve())):
+        raise HTTPException(400, "非法路径")
+    if not target.exists():
+        raise HTTPException(404, "文件不存在")
+    return {"name": filename, "content": target.read_text(errors="replace")}
 
 
 @router.post("/raw/", status_code=201)
@@ -84,17 +99,54 @@ async def upload_raw(file: UploadFile = File(...)):
 
 _WIKI_CONTENT_DIRS = {"concepts", "entities", "sources", "comparisons"}
 
+_DIR_TO_TYPE: dict[str, str] = {
+    "concepts": "concept",
+    "entities": "entity",
+    "sources": "source-summary",
+    "comparisons": "comparison",
+}
+
+_WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
+_FRONTMATTER_RE = re.compile(r"^---\s*\n.*?\n---\s*\n?", re.DOTALL)
+
+
+def _parse_wiki_meta(md_file: Path, wiki_dir: Path) -> dict:
+    """从 wiki markdown 文件提取 type / summary / ref_count。"""
+    rel = md_file.relative_to(wiki_dir)
+    dir_name = rel.parts[0]
+    wiki_type = _DIR_TO_TYPE.get(dir_name, "concept")
+
+    text = md_file.read_text(encoding="utf-8", errors="replace")
+    body = _FRONTMATTER_RE.sub("", text, count=1).strip()
+    summary = body[:80].replace("\n", " ")
+    ref_count = len(_WIKILINK_RE.findall(text))
+
+    return {"type": wiki_type, "summary": summary, "ref_count": ref_count}
+
+
+
+def _list_wiki_sync(wiki_dir: Path) -> list[dict]:
+    results = []
+    for md in sorted(wiki_dir.rglob("*.md")):
+        rel = md.relative_to(wiki_dir)
+        if rel.parts[0] not in _WIKI_CONTENT_DIRS:
+            continue
+        meta = _parse_wiki_meta(md, wiki_dir)
+        results.append({
+            "path": str(rel),
+            "name": md.stem,
+            "modified_at": int(md.stat().st_mtime),
+            **meta,
+        })
+    return results
+
 
 @router.get("/wiki/")
 async def list_wiki():
     wiki_dir = _kb_root() / "wiki"
     if not wiki_dir.exists():
         return []
-    return [
-        {"path": str(md.relative_to(wiki_dir)), "name": md.stem, "modified_at": int(md.stat().st_mtime)}
-        for md in sorted(wiki_dir.rglob("*.md"))
-        if md.relative_to(wiki_dir).parts[0] in _WIKI_CONTENT_DIRS
-    ]
+    return await asyncio.get_event_loop().run_in_executor(None, _list_wiki_sync, wiki_dir)
 
 
 @router.get("/wiki/{page_path:path}")
@@ -191,3 +243,44 @@ async def trigger_ingest(background_tasks: BackgroundTasks):
 async def trigger_lint(background_tasks: BackgroundTasks):
     background_tasks.add_task(_run_lint)
     return {"status": "started"}
+
+
+@router.post("/pull-sources", status_code=202)
+async def trigger_pull_sources(background_tasks: BackgroundTasks):
+    """手动触发所有外部知识来源拉取（写入 raw/）。"""
+    background_tasks.add_task(_run_pull_sources)
+    return {"status": "started", "message": "知识来源拉取已启动，完成后写入 raw/"}
+
+
+async def _run_pull_sources() -> None:
+    try:
+        from choreo.config import settings
+        from choreo.knowledge_sources.factory import load_sources
+        from choreo.knowledge_sources.puller import pull_once
+
+        configs: list[dict] = settings.KNOWLEDGE_SOURCES or []
+        if not configs:
+            logger.warning("KNOWLEDGE_SOURCES 未配置，跳过拉取")
+            return
+        adapters = load_sources(configs)
+        kb_root = Path(settings.KNOWLEDGE_BASE_DIR).expanduser()
+        stats = await pull_once(adapters, kb_root)
+        logger.info("知识来源拉取完成: %s", stats)
+    except Exception as exc:
+        logger.error("知识来源拉取失败: %r", exc)
+
+
+@router.post("/update-profile", status_code=202)
+async def trigger_profile_update(background_tasks: BackgroundTasks):
+    """手动触发用户画像更新（异步后台执行）。"""
+    background_tasks.add_task(_run_profile_update)
+    return {"status": "started", "message": "用户画像更新已启动，完成后写入 wiki/user/profile.md"}
+
+
+async def _run_profile_update() -> None:
+    try:
+        from choreo.activity.profiler import update_profile
+        await update_profile()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("画像更新失败: %r", exc)

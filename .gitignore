@@ -20,10 +20,10 @@ frontend/.vite/
 /sandbox/
 
 # 个人知识库（本地数据，不入库）
-knowledge/
+/knowledge/
 
-# skill
-skills
+# skill data directory (root only)
+/skills
 
 # Debug / temp test scripts
 backend/tests/debug_*.py
@@ -31,8 +31,6 @@ frontend/curator-panel-preview.html
 
 # Claude Code / Superpowers
 .superpowers/
-docs/superpowers/
-docs/
 
 # IDE
 .idea/

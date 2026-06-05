@@ -79,3 +79,56 @@ def test_get_log(client):
     res = client.get("/log")
     assert res.status_code == 200
     assert "content" in res.json()
+
+
+def test_list_wiki_has_new_fields(client, kb_dir):
+    """list_wiki 应返回 summary / type / ref_count 字段。"""
+    wiki_dir = Path(kb_dir) / "wiki" / "concepts"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    (wiki_dir / "rag.md").write_text(
+        "---\ntitle: RAG\n---\n\nRetrieval-Augmented Generation is a technique. [[向量数据库]]",
+        encoding="utf-8",
+    )
+    res = client.get("/wiki/")
+    assert res.status_code == 200
+    pages = res.json()
+    assert len(pages) == 1
+    p = pages[0]
+    assert p["type"] == "concept"
+    assert "Retrieval-Augmented" in p["summary"]
+    assert p["ref_count"] == 1
+
+
+def test_list_raw_has_compiled_field(client, kb_dir):
+    """list_raw 应返回 compiled 字段。"""
+    # 上传一个原始文件
+    client.post("/raw/", files={"file": ("paper.md", io.BytesIO(b"# Paper\nContent."), "text/markdown")})
+    res = client.get("/raw/")
+    assert res.status_code == 200
+    files = res.json()
+    assert len(files) == 1
+    assert "compiled" in files[0]
+    assert files[0]["compiled"] is False  # 尚未有 wiki 引用它
+
+
+def test_raw_compiled_true_when_referenced(client, kb_dir):
+    """wiki 页面 [[paper]] 引用时 raw/paper.md 应标记为 compiled=True。"""
+    client.post("/raw/", files={"file": ("paper.md", io.BytesIO(b"# Paper\nContent."), "text/markdown")})
+    # 手动创建引用该文件的 wiki 页面
+    wiki_dir = Path(kb_dir) / "wiki" / "concepts"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    (wiki_dir / "summary.md").write_text("# Summary\n\n[[paper]]", encoding="utf-8")
+    res = client.get("/raw/")
+    assert res.status_code == 200
+    assert res.json()[0]["compiled"] is True
+
+
+def test_raw_compiled_with_pipe_alias(client, kb_dir):
+    """[[paper|Display Name]] 引用时 raw/paper.md 应标记为 compiled=True。"""
+    client.post("/raw/", files={"file": ("paper.md", io.BytesIO(b"# Paper\nContent."), "text/markdown")})
+    wiki_dir = Path(kb_dir) / "wiki" / "concepts"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    (wiki_dir / "ref.md").write_text("# Ref\n\n[[paper|Paper Display Name]]", encoding="utf-8")
+    res = client.get("/raw/")
+    assert res.status_code == 200
+    assert res.json()[0]["compiled"] is True

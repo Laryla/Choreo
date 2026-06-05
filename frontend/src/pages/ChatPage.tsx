@@ -7,15 +7,17 @@ import ChatMessage from "@/components/Chat/ChatMessage";
 import ChatInput from "@/components/Chat/ChatInput";
 import RunnerLoader from "@/components/Chat/RunnerLoader";
 import ReviewPanel from "@/components/ReviewPanel/ReviewPanel";
+import SkillSuggestionBanner from "@/components/Chat/SkillSuggestionBanner";
 import Topbar from "@/components/Topbar/Topbar";
 import { useChat, THREADS_KEY } from "@/hooks/useChat";
 import { useReviewStore } from "@/store/reviewStore";
+import { apiFetch } from "@/lib/api";
 
 const API = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000";
 const fetcher = (url: string) => fetch(`${API}${url}`).then((r) => r.json());
 
 function ChatInner({ threadId }: { threadId?: string }) {
-  const { messages, streamingContent, streamingThinking, resetMessages } = useChatStore();
+  const { messages, streamingContent, streamingThinking, resetMessages, setSkillSuggestion } = useChatStore();
   const { sendMessage, streaming, threadId: currentThreadId } = useChat(threadId);
   const { current: reviewRequest } = useReviewStore();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -34,6 +36,12 @@ function ChatInner({ threadId }: { threadId?: string }) {
     fetch(`${API}/threads/${threadId}/messages`)
       .then((r) => (r.ok ? r.json() : []))
       .then((msgs) => resetMessages(msgs))
+      .catch(() => {});
+
+    // 恢复该线程的待确认技能建议
+    apiFetch(`/threads/${threadId}/skill-suggestion`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setSkillSuggestion(data ?? null))
       .catch(() => {});
   }, [threadId]);
 
@@ -114,6 +122,8 @@ function ChatInner({ threadId }: { threadId?: string }) {
       </div>
 
       {reviewRequest && <ReviewPanel />}
+
+      {activeId && <SkillSuggestionBanner threadId={activeId} />}
 
       <div className="border-t border-[#ddd9d0] dark:border-[#202020] bg-[#f0ede6] dark:bg-[#141414]">
         <ChatInput onSend={(text, ctx) => sendMessage(text, ctx)} disabled={streaming || !!reviewRequest} />

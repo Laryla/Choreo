@@ -19,6 +19,9 @@ export interface WikiPageMeta {
   path: string;
   name: string;
   modified_at: number;
+  summary: string;
+  type: "concept" | "entity" | "source-summary" | "comparison";
+  ref_count: number;
 }
 
 export interface KBGraphData {
@@ -74,6 +77,13 @@ export function useOutputs() {
   return useSWR<OutputFile[]>(KB_OUTPUTS_KEY, fetcher);
 }
 
+export function useRawFile(name: string | null) {
+  return useSWR<{ name: string; content: string }>(
+    name ? `/api/kb/raw/${name}` : null,
+    fetcher
+  );
+}
+
 export function useOutputFile(name: string | null) {
   return useSWR<{ name: string; content: string }>(
     name ? `/api/kb/outputs/${name}` : null,
@@ -84,4 +94,12 @@ export function useOutputFile(name: string | null) {
 export async function triggerLint(): Promise<void> {
   await apiFetch("/api/kb/lint", { method: "POST" });
   await mutate(KB_OUTPUTS_KEY);
+}
+
+export async function triggerProfileUpdate(): Promise<void> {
+  await apiFetch("/api/kb/update-profile", { method: "POST" });
+}
+
+export async function triggerPullSources(): Promise<void> {
+  await apiFetch("/api/kb/pull-sources", { method: "POST" });
 }
