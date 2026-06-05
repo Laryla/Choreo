@@ -84,6 +84,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
 
     # ── Auth（密钥，建议放 .env）──────────────────────────────────────
+    AUTH_MODE: str = "jwt"  # "jwt" = 正常鉴权；"all" = 本地开发无需登录
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
     BACKEND_URL: str = "http://localhost:8000"
