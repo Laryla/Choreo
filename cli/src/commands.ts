@@ -57,34 +57,40 @@ function printCommandList(ctx: CommandContext, cmds: CommandDef[]): void {
 }
 
 export async function handleSlashInput(input: string, ctx: CommandContext): Promise<void> {
-  const raw = input.slice(1).trim();
-  const spaceIdx = raw.indexOf(' ');
-  const cmdQuery = spaceIdx === -1 ? raw : raw.slice(0, spaceIdx);
-  const argsStr  = spaceIdx === -1 ? '' : raw.slice(spaceIdx + 1);
+  let current = input;
 
-  if (!cmdQuery) {
-    printCommandList(ctx, REGISTRY);
+  while (true) {
+    const raw = current.slice(1).trim();
+    const spaceIdx = raw.indexOf(' ');
+    const cmdQuery = spaceIdx === -1 ? raw : raw.slice(0, spaceIdx);
+    const argsStr  = spaceIdx === -1 ? '' : raw.slice(spaceIdx + 1);
+
+    if (!cmdQuery) {
+      printCommandList(ctx, REGISTRY);
+      const next = (await ctx.askUser()).trim();
+      if (!next.startsWith('/')) return;
+      current = next;
+      continue;
+    }
+
+    const matches = REGISTRY.filter(c => c.name.startsWith(cmdQuery));
+
+    if (matches.length === 0) {
+      ctx.renderer.error(`未知命令: /${cmdQuery}  (输入 /help 查看所有命令)`);
+      return;
+    }
+
+    const exact = matches.find(c => c.name === cmdQuery);
+    if (exact) {
+      await exact.run(argsStr, ctx);
+      return;
+    }
+
+    printCommandList(ctx, matches);
     const next = (await ctx.askUser()).trim();
-    if (next.startsWith('/')) await handleSlashInput(next, ctx);
-    return;
+    if (!next.startsWith('/')) return;
+    current = next;
   }
-
-  const matches = REGISTRY.filter(c => c.name.startsWith(cmdQuery));
-
-  if (matches.length === 0) {
-    ctx.renderer.error(`未知命令: /${cmdQuery}  (输入 /help 查看所有命令)`);
-    return;
-  }
-
-  const exact = matches.find(c => c.name === cmdQuery);
-  if (exact) {
-    await exact.run(argsStr, ctx);
-    return;
-  }
-
-  printCommandList(ctx, matches);
-  const next = (await ctx.askUser()).trim();
-  if (next.startsWith('/')) await handleSlashInput(next, ctx);
 }
 
 // ── command: /new ──────────────────────────────────────────────
@@ -127,7 +133,7 @@ registerCommand({
     try {
       for await (const chunk of streamRun(ctx.config.apiUrl, tid, {
         messages: [{ role: 'human', content: COMPACT_PROMPT }],
-      })) {
+      }, ctx.getCurrentModel())) {
         if (chunk.event === 'messages') {
           const msgs = Array.isArray(chunk.data) ? chunk.data : [chunk.data];
           for (const msg of msgs as Record<string, unknown>[]) {
@@ -263,6 +269,12 @@ registerCommand({
     const { runWizard } = await import('./wizard.js');
     const newConfig = await runWizard();
     Object.assign(ctx.config, newConfig);
+    // Refresh active model in case apiUrl changed
+    try {
+      const res = await fetch(`${ctx.config.apiUrl}/models/active`);
+      const d = await res.json() as { name: string };
+      ctx.setCurrentModel(d.name);
+    } catch { /* keep current model if backend unreachable */ }
   },
 });
 
