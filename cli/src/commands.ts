@@ -123,7 +123,7 @@ registerCommand({
     ctx.renderer.info('压缩对话上下文...');
     const { streamRun } = await import('./stream.js');
     const COMPACT_PROMPT = '请将以上对话内容压缩为简短摘要，只保留关键信息和结论。用中文回复。';
-    let tokenCount = 0;
+    let hasOutput = false;
     try {
       for await (const chunk of streamRun(ctx.config.apiUrl, tid, {
         messages: [{ role: 'human', content: COMPACT_PROMPT }],
@@ -133,14 +133,14 @@ registerCommand({
           for (const msg of msgs as Record<string, unknown>[]) {
             const content = msg?.content;
             if (typeof content === 'string' && content) {
-              if (tokenCount === 0) process.stdout.write('\n');
+              if (!hasOutput) process.stdout.write('\n');
               process.stdout.write(content);
-              tokenCount++;
+              hasOutput = true;
             }
           }
         }
       }
-      if (tokenCount > 0) process.stdout.write('\n');
+      if (hasOutput) process.stdout.write('\n');
       ctx.renderer.success('摘要已添加到对话');
     } catch (e) {
       ctx.renderer.error(`压缩失败: ${(e as Error).message}`);
@@ -210,8 +210,22 @@ registerCommand({
   group: 'model',
   run: async (args, ctx) => {
     if (args.trim()) {
-      ctx.setCurrentModel(args.trim());
-      ctx.renderer.success(`已切换到 ${args.trim()}`);
+      let models: Awaited<ReturnType<typeof ctx.client.listModels>>;
+      try {
+        models = await ctx.client.listModels();
+      } catch {
+        // Can't validate — set anyway
+        ctx.setCurrentModel(args.trim());
+        ctx.renderer.success(`已切换到 ${args.trim()}（未验证）`);
+        return;
+      }
+      const found = models.find(m => m.name === args.trim());
+      if (found) {
+        ctx.setCurrentModel(found.name);
+        ctx.renderer.success(`已切换到 ${found.name}`);
+      } else {
+        ctx.renderer.error(`未知模型: ${args.trim()}`);
+      }
       return;
     }
     let models: Awaited<ReturnType<typeof ctx.client.listModels>>;
@@ -260,9 +274,9 @@ registerCommand({
   run: async (_, ctx) => {
     let connected = false;
     try {
-      const res = await fetch(`${ctx.config.apiUrl}/models/active`);
-      connected = res.ok;
-    } catch { /* unreachable */ }
+      await ctx.client.listModels();
+      connected = true;
+    } catch { /* backend unreachable */ }
     const connStr = connected
       ? ctx.theme.success('● 已连接')
       : ctx.theme.error('✗ 无法连接');
