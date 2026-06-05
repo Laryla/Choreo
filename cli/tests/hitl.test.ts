@@ -7,9 +7,10 @@ describe('isDangerous', () => {
     expect(isDangerous('rm -r /tmp/foo')).toBe(true);
   });
 
-  it('flags git push --force', () => {
+  it('flags git push --force but not --force-with-lease', () => {
     expect(isDangerous('git push origin main --force')).toBe(true);
-    expect(isDangerous('git push --force-with-lease')).toBe(true);
+    expect(isDangerous('git push --force-with-lease')).toBe(false);  // safe alternative
+    expect(isDangerous('git push --force origin main')).toBe(true);
   });
 
   it('flags SQL destructive ops', () => {

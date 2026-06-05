@@ -4,8 +4,7 @@ import type { Renderer } from './renderer.js';
 
 const DANGEROUS_PATTERNS = [
   /rm\s+-[rf]/,
-  /git\s+push\s+.*--force/i,
-  /git\s+push\s+--force/i,
+  /git\s+push\s+(?:.*\s)?--force(?!-with-lease)(?:\s|$)/i,
   /DROP\s+TABLE/i,
   /TRUNCATE\s+TABLE/i,
   /DELETE\s+FROM/i,

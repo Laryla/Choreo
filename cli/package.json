@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "Choreo AI assistant CLI",
   "type": "module",
-  "bin": { "choreo": "./dist/index.js" },
+  "bin": {
+    "choreo": "./dist/index.js"
+  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsup src/index.ts --format esm --dts",
@@ -13,8 +15,7 @@
     "@langchain/langgraph-sdk": "^1.9.16",
     "chalk": "^5.4.1",
     "commander": "^12.1.0",
-    "inquirer": "^9.3.7",
-    "ora": "^8.1.1"
+    "inquirer": "^9.3.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

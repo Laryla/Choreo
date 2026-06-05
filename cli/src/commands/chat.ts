@@ -185,9 +185,7 @@ export async function chatCommand(): Promise<void> {
           if (chunk.event === 'skill_suggestion') {
             const s = chunk.data as { category: string; name: string; description: string };
             renderer.skillSuggestion(s.category, s.name, s.description);
-            const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
-            const ans = await new Promise<string>((r) => rl2.question('❯ ', r));
-            rl2.close();
+            const ans = await new Promise<string>((resolve) => rl.question('❯ ', resolve));
             if (ans.trim().toLowerCase() === 'y') {
               await client.acceptSkillSuggestion(threadId!).catch(() => {});
               renderer.success('技能已保存');
