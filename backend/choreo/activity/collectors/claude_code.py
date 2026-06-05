@@ -18,8 +18,10 @@ _SENSITIVE_RE = re.compile(
     re.IGNORECASE,
 )
 
-_MAX_PER_PROJECT = 8_000   # 每个项目最多 8K 字符
-_MAX_TOTAL = 40_000        # 所有项目合计上限
+# 单项目压缩后上限
+_SUMMARY_MAX = 600
+# 送给 LLM 压缩的原始内容上限（避免超 context）
+_RAW_COMPRESS_LIMIT = 15_000
 
 
 def _desensitize(text: str) -> str:
@@ -30,62 +32,155 @@ def _desensitize(text: str) -> str:
 
 
 class ClaudeCodeCollector(BaseCollector):
-    """通过 claude-code-log CLI + JSONL mtime 采集 Claude Code 会话行为。"""
+    """增量采集 Claude Code 会话，逐项目 LLM 压缩后存档，每次返回全量摘要。"""
 
     def __init__(self, claude_projects_dir: Path | None = None) -> None:
         self._dir = claude_projects_dir or _DEFAULT_PROJECTS_DIR
+        from choreo.config import settings
+        kb_root = Path(settings.KNOWLEDGE_BASE_DIR).expanduser()
+        self._summary_dir = kb_root / "raw" / "cc-summaries"
+        self._meta_file = self._summary_dir / ".meta.json"
 
-    async def collect(self, since: datetime, max_chars: int = _MAX_TOTAL) -> str:
+    # ------------------------------------------------------------------
+    # 公共接口
+    # ------------------------------------------------------------------
+
+    async def collect(self, since: datetime, max_chars: int = 0) -> str:
+        """增量更新各项目摘要，返回全量摘要拼合字符串。since/max_chars 已由内部 meta 管理。"""
+        del since, max_chars  # 时间窗口改由 meta 中的 last_summarized 管理
         if not self._dir.exists():
             return ""
 
-        # 按最近活跃时间排序，优先采集最活跃的项目
-        project_dirs = [d for d in self._dir.iterdir() if d.is_dir()]
-        project_dirs.sort(key=lambda d: self._last_active(d), reverse=True)
+        self._summary_dir.mkdir(parents=True, exist_ok=True)
+        meta = self._load_meta()
 
-        parts: list[str] = []
-        total_chars = 0
+        project_dirs = sorted(
+            [d for d in self._dir.iterdir() if d.is_dir()],
+            key=lambda d: self._last_active(d),
+            reverse=True,
+        )
 
+        any_updated = False
         for project_dir in project_dirs:
-            if total_chars >= max_chars:
-                break
+            updated = await self._update_project(project_dir, meta)
+            if updated:
+                any_updated = True
 
-            sessions = self._recent_sessions(project_dir / "sessions-index.json", since)
-            if not sessions:
+        if any_updated:
+            self._save_meta(meta)
+
+        return self._build_output(project_dirs)
+
+    # ------------------------------------------------------------------
+    # 增量更新单个项目
+    # ------------------------------------------------------------------
+
+    async def _update_project(self, project_dir: Path, meta: dict) -> bool:
+        proj_key = project_dir.name
+
+        # 检查是否有新会话
+        last_summarized = meta.get(proj_key, {}).get("last_summarized", 0.0)
+        last_active = self._last_active(project_dir)
+        if last_active <= last_summarized:
+            return False
+
+        last_dt = datetime.fromtimestamp(last_summarized) if last_summarized else datetime(2020, 1, 1)
+        sessions = self._recent_sessions(project_dir / "sessions-index.json", last_dt)
+        if not sessions:
+            return False
+
+        raw = await self._run_cc_log(project_dir, last_dt)
+        if not raw.strip():
+            return False
+
+        summary_path = self._summary_dir / f"{proj_key}.md"
+        existing = summary_path.read_text(encoding="utf-8", errors="replace") if summary_path.exists() else ""
+
+        project_name = proj_key.replace("-", "/").strip("/")
+        new_summary = await self._compress(project_name, raw, existing)
+
+        summary_path.write_text(new_summary, encoding="utf-8")
+        meta.setdefault(proj_key, {})["last_summarized"] = datetime.now().timestamp()
+        logger.info("已更新项目摘要：%s", project_name)
+        return True
+
+    # ------------------------------------------------------------------
+    # LLM 压缩
+    # ------------------------------------------------------------------
+
+    async def _compress(self, project_name: str, new_raw: str, existing: str) -> str:
+        try:
+            from choreo.model_factory import load_model
+            from langchain_core.messages import HumanMessage
+
+            llm = load_model()
+            raw_excerpt = _desensitize(new_raw)[:_RAW_COMPRESS_LIMIT]
+
+            if existing.strip():
+                prompt = (
+                    f"你是工作记录压缩器。\n\n"
+                    f"【现有摘要】（{project_name} 项目）：\n{existing}\n\n"
+                    f"【新增会话记录】：\n{raw_excerpt}\n\n"
+                    f"将新记录融入现有摘要，保留所有重要工作内容，控制在 {_SUMMARY_MAX} 字以内。"
+                    f"直接输出摘要，不要前缀。"
+                )
+            else:
+                prompt = (
+                    f"你是工作记录压缩器。\n\n"
+                    f"【会话记录】（{project_name} 项目）：\n{raw_excerpt}\n\n"
+                    f"用 {_SUMMARY_MAX} 字以内总结：做了什么、遇到什么问题、用了什么技术。"
+                    f"直接输出摘要，不要前缀。"
+                )
+
+            resp = await llm.ainvoke([HumanMessage(content=prompt)])
+            return str(resp.content).strip()
+
+        except Exception as exc:
+            logger.warning("LLM 压缩失败 %s: %r，回退到截断", project_name, exc)
+            return _desensitize(new_raw)[:_SUMMARY_MAX * 4]
+
+    # ------------------------------------------------------------------
+    # 拼合输出
+    # ------------------------------------------------------------------
+
+    def _build_output(self, project_dirs: list[Path]) -> str:
+        parts: list[str] = []
+        for project_dir in project_dirs:
+            summary_path = self._summary_dir / f"{project_dir.name}.md"
+            if not summary_path.exists():
                 continue
-
-            content = await self._run_cc_log(project_dir, since)
-            total_msgs = sum(s.get("message_count", 0) for s in sessions)
+            content = summary_path.read_text(encoding="utf-8", errors="replace").strip()
+            if not content:
+                continue
             project_name = project_dir.name.replace("-", "/").strip("/")
-
-            body = _desensitize(content).strip() if content.strip() else "（无详细内容）"
-
-            # 每个项目限制字符数，防止单项目吃掉所有配额
-            remaining = max_chars - total_chars - 200  # 留 header 空间
-            per_limit = min(_MAX_PER_PROJECT, remaining)
-            if len(body) > per_limit:
-                body = body[:per_limit] + f"\n...（项目内容已截断）"
-
-            header = f"### 项目: {project_name}（{len(sessions)} 个会话，约 {total_msgs} 条消息）"
-            part = f"{header}\n\n{body}"
-            parts.append(part)
-            total_chars += len(part)
+            parts.append(f"### {project_name}\n\n{content}")
 
         if not parts:
             return ""
 
-        start = since.strftime("%Y-%m-%d")
-        end = datetime.now().strftime("%Y-%m-%d")
-        result = f"=== Claude Code 会话（{start} ~ {end}）===\n\n" + "\n\n---\n\n".join(parts)
-        return result
+        return "=== Claude Code 项目摘要 ===\n\n" + "\n\n---\n\n".join(parts)
+
+    # ------------------------------------------------------------------
+    # 工具方法
+    # ------------------------------------------------------------------
+
+    def _load_meta(self) -> dict:
+        if self._meta_file.exists():
+            try:
+                return json.loads(self._meta_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        return {}
+
+    def _save_meta(self, meta: dict) -> None:
+        self._meta_file.write_text(
+            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     def _last_active(self, project_dir: Path) -> float:
-        """返回项目最近 JSONL 的 mtime，用于排序。"""
         try:
-            jsonl_files = list(project_dir.glob("*.jsonl"))
-            if not jsonl_files:
-                return 0.0
-            return max(f.stat().st_mtime for f in jsonl_files)
+            files = list(project_dir.glob("*.jsonl"))
+            return max((f.stat().st_mtime for f in files), default=0.0)
         except Exception:
             return 0.0
 
@@ -111,13 +206,9 @@ class ClaudeCodeCollector(BaseCollector):
             except Exception:
                 pass
 
-        # Fallback：用 JSONL 文件修改时间
         project_dir = index_path.parent
-        recent_jsonl = [
-            f for f in project_dir.glob("*.jsonl")
-            if f.stat().st_mtime >= since_ts
-        ]
-        return [{"session_id": f.stem} for f in recent_jsonl]
+        recent = [f for f in project_dir.glob("*.jsonl") if f.stat().st_mtime >= since_ts]
+        return [{"session_id": f.stem} for f in recent]
 
     async def _run_cc_log(self, project_dir: Path, since: datetime) -> str:
         import tempfile
@@ -138,7 +229,7 @@ class ClaudeCodeCollector(BaseCollector):
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            await asyncio.wait_for(proc.communicate(), timeout=60)  # 单项目 60s
+            await asyncio.wait_for(proc.communicate(), timeout=60)
             if tmp_file.exists():
                 return tmp_file.read_text(encoding="utf-8", errors="replace")
             return ""
