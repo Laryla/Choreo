@@ -29,22 +29,14 @@ class RawFile(BaseModel):
     name: str
     size: int
     modified_at: int
-    compiled: bool
 
 
 @router.get("/raw/", response_model=list[RawFile])
 async def list_raw():
     raw_dir = _kb_root() / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
-    wiki_dir = _kb_root() / "wiki"
-    compiled = await asyncio.get_event_loop().run_in_executor(None, _compiled_stems, wiki_dir)
     return [
-        RawFile(
-            name=f.name,
-            size=f.stat().st_size,
-            modified_at=int(f.stat().st_mtime),
-            compiled=Path(f.name).stem.lower() in compiled,
-        )
+        RawFile(name=f.name, size=f.stat().st_size, modified_at=int(f.stat().st_mtime))
         for f in sorted(raw_dir.iterdir())
         if f.is_file()
     ]
@@ -131,17 +123,6 @@ def _parse_wiki_meta(md_file: Path, wiki_dir: Path) -> dict:
 
     return {"type": wiki_type, "summary": summary, "ref_count": ref_count}
 
-
-def _compiled_stems(wiki_dir: Path) -> set[str]:
-    """返回在 wiki 页面中被 [[...]] 引用过的词条名（小写 stem 集合）。"""
-    stems: set[str] = set()
-    if not wiki_dir.exists():
-        return stems
-    for md in wiki_dir.rglob("*.md"):
-        for match in _WIKILINK_RE.finditer(md.read_text(encoding="utf-8", errors="replace")):
-            raw = match.group(1).strip().lower()
-            stems.add(raw.split("|")[0].strip())
-    return stems
 
 
 def _list_wiki_sync(wiki_dir: Path) -> list[dict]:

@@ -71,12 +71,9 @@ function RawDetail({ file, onClose }: { file: RawFile; onClose: () => void }) {
       <div className="flex items-start justify-between gap-3 p-4 border-b border-[#e6e2da] dark:border-[#2d2d48]">
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-bold text-[#1a1a1a] dark:text-[#e2e8f0] leading-snug truncate">{file.name}</h2>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${file.compiled ? "bg-emerald-500" : "bg-amber-400"}`} />
-            <span className="text-[11px] text-[#888] dark:text-[#64748b]">
-              {file.compiled ? "已编译" : "待编译"} · {(file.size / 1024).toFixed(1)} KB
-            </span>
-          </div>
+          <span className="text-[11px] text-[#888] dark:text-[#64748b] mt-1 block">
+            {(file.size / 1024).toFixed(1)} KB
+          </span>
         </div>
         <button
           onClick={onClose}

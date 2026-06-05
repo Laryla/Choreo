@@ -13,7 +13,6 @@ export interface RawFile {
   name: string;
   size: number;
   modified_at: number;
-  compiled: boolean;
 }
 
 export interface WikiPageMeta {

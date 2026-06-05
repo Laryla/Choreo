@@ -33,15 +33,8 @@ export default function RawFileCard({ file, selected, onSelect }: Props) {
       <div className="text-sm font-semibold text-[#1a1a1a] dark:text-[#e2e8f0] mb-2 leading-snug truncate">
         {file.name}
       </div>
-      <div className="flex items-center gap-1.5 text-[10px] text-[#aaa] dark:text-[#475569]">
-        <span
-          className={`w-1.5 h-1.5 rounded-full inline-block ${
-            file.compiled ? "bg-emerald-500" : "bg-amber-400"
-          }`}
-        />
-        <span>{file.compiled ? "已编译" : "待编译"}</span>
-        <span>·</span>
-        <span>{sizeKB} KB</span>
+      <div className="text-[10px] text-[#aaa] dark:text-[#475569]">
+        {sizeKB} KB
       </div>
     </button>
   );
