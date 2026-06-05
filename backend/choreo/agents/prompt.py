@@ -57,16 +57,14 @@ SYSTEM_PROMPT_TEMPLATE = """\
 """
 
 
-def _load_user_context() -> str:
-    """读取 wiki/user/recent-context.md，失败时静默返回空。"""
+def _read_wiki_user(filename: str) -> str:
+    """读取 wiki/user/{filename}，失败时静默返回空字符串。"""
     try:
         from choreo.config import settings
         kb_root = Path(settings.KNOWLEDGE_BASE_DIR).expanduser()
-        path = kb_root / "wiki" / "user" / "recent-context.md"
+        path = kb_root / "wiki" / "user" / filename
         if path.exists():
-            content = path.read_text(encoding="utf-8", errors="replace").strip()
-            if content:
-                return f"\n\n## 用户近期上下文\n\n{content}\n"
+            return path.read_text(encoding="utf-8", errors="replace").strip()
     except Exception:
         pass
     return ""
@@ -74,5 +72,14 @@ def _load_user_context() -> str:
 
 def build_system_prompt() -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    user_context = _load_user_context()
-    return SYSTEM_PROMPT_TEMPLATE.format(now=now) + user_context
+    base = SYSTEM_PROMPT_TEMPLATE.format(now=now)
+
+    profile = _read_wiki_user("profile.md")
+    if profile:
+        base += f"\n\n## 用户画像\n\n{profile}\n"
+
+    recent = _read_wiki_user("recent-context.md")
+    if recent:
+        base += f"\n\n## 用户近期上下文\n\n{recent}\n"
+
+    return base
