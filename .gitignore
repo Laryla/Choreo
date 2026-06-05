@@ -31,8 +31,6 @@ frontend/curator-panel-preview.html
 
 # Claude Code / Superpowers
 .superpowers/
-docs/superpowers/
-docs/
 
 # IDE
 .idea/
