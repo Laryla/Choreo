@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 import tempfile
@@ -36,7 +37,7 @@ async def list_raw():
     raw_dir = _kb_root() / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     wiki_dir = _kb_root() / "wiki"
-    compiled = _compiled_stems(wiki_dir)
+    compiled = await asyncio.get_event_loop().run_in_executor(None, _compiled_stems, wiki_dir)
     return [
         RawFile(
             name=f.name,
@@ -103,7 +104,7 @@ _DIR_TO_TYPE: dict[str, str] = {
 }
 
 _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
-_FRONTMATTER_RE = re.compile(r"^---\s*\n.*?\n---\s*\n", re.DOTALL)
+_FRONTMATTER_RE = re.compile(r"^---\s*\n.*?\n---\s*\n?", re.DOTALL)
 
 
 def _parse_wiki_meta(md_file: Path, wiki_dir: Path) -> dict:
@@ -127,15 +128,12 @@ def _compiled_stems(wiki_dir: Path) -> set[str]:
         return stems
     for md in wiki_dir.rglob("*.md"):
         for match in _WIKILINK_RE.finditer(md.read_text(encoding="utf-8", errors="replace")):
-            stems.add(match.group(1).strip().lower())
+            raw = match.group(1).strip().lower()
+            stems.add(raw.split("|")[0].strip())
     return stems
 
 
-@router.get("/wiki/")
-async def list_wiki():
-    wiki_dir = _kb_root() / "wiki"
-    if not wiki_dir.exists():
-        return []
+def _list_wiki_sync(wiki_dir: Path) -> list[dict]:
     results = []
     for md in sorted(wiki_dir.rglob("*.md")):
         rel = md.relative_to(wiki_dir)
@@ -149,6 +147,14 @@ async def list_wiki():
             **meta,
         })
     return results
+
+
+@router.get("/wiki/")
+async def list_wiki():
+    wiki_dir = _kb_root() / "wiki"
+    if not wiki_dir.exists():
+        return []
+    return await asyncio.get_event_loop().run_in_executor(None, _list_wiki_sync, wiki_dir)
 
 
 @router.get("/wiki/{page_path:path}")

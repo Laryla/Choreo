@@ -101,7 +101,6 @@ def test_list_wiki_has_new_fields(client, kb_dir):
 
 def test_list_raw_has_compiled_field(client, kb_dir):
     """list_raw 应返回 compiled 字段。"""
-    import io
     # 上传一个原始文件
     client.post("/raw/", files={"file": ("paper.md", io.BytesIO(b"# Paper\nContent."), "text/markdown")})
     res = client.get("/raw/")
@@ -114,12 +113,22 @@ def test_list_raw_has_compiled_field(client, kb_dir):
 
 def test_raw_compiled_true_when_referenced(client, kb_dir):
     """wiki 页面 [[paper]] 引用时 raw/paper.md 应标记为 compiled=True。"""
-    import io
     client.post("/raw/", files={"file": ("paper.md", io.BytesIO(b"# Paper\nContent."), "text/markdown")})
     # 手动创建引用该文件的 wiki 页面
     wiki_dir = Path(kb_dir) / "wiki" / "concepts"
     wiki_dir.mkdir(parents=True, exist_ok=True)
     (wiki_dir / "summary.md").write_text("# Summary\n\n[[paper]]", encoding="utf-8")
+    res = client.get("/raw/")
+    assert res.status_code == 200
+    assert res.json()[0]["compiled"] is True
+
+
+def test_raw_compiled_with_pipe_alias(client, kb_dir):
+    """[[paper|Display Name]] 引用时 raw/paper.md 应标记为 compiled=True。"""
+    client.post("/raw/", files={"file": ("paper.md", io.BytesIO(b"# Paper\nContent."), "text/markdown")})
+    wiki_dir = Path(kb_dir) / "wiki" / "concepts"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    (wiki_dir / "ref.md").write_text("# Ref\n\n[[paper|Paper Display Name]]", encoding="utf-8")
     res = client.get("/raw/")
     assert res.status_code == 200
     assert res.json()[0]["compiled"] is True
