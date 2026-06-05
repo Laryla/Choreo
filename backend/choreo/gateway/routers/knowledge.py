@@ -50,6 +50,17 @@ async def list_raw():
     ]
 
 
+@router.get("/raw/{filename}")
+async def read_raw(filename: str):
+    raw_dir = _kb_root() / "raw"
+    target = (raw_dir / filename).resolve()
+    if not str(target).startswith(str(raw_dir.resolve())):
+        raise HTTPException(400, "非法路径")
+    if not target.exists():
+        raise HTTPException(404, "文件不存在")
+    return {"name": filename, "content": target.read_text(errors="replace")}
+
+
 @router.post("/raw/", status_code=201)
 async def upload_raw(file: UploadFile = File(...)):
     if not file.filename:

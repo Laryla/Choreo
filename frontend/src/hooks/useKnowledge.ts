@@ -78,6 +78,13 @@ export function useOutputs() {
   return useSWR<OutputFile[]>(KB_OUTPUTS_KEY, fetcher);
 }
 
+export function useRawFile(name: string | null) {
+  return useSWR<{ name: string; content: string }>(
+    name ? `/api/kb/raw/${name}` : null,
+    fetcher
+  );
+}
+
 export function useOutputFile(name: string | null) {
   return useSWR<{ name: string; content: string }>(
     name ? `/api/kb/outputs/${name}` : null,
