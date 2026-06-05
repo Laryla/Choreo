@@ -39,19 +39,23 @@ function WikiDetail({ page, onClose }: { page: WikiPageMeta; onClose: () => void
         )}
       </div>
       {sources.length > 0 && (
-        <div className="p-4 border-t border-[#e6e2da] dark:border-[#2d2d48]">
+        <div className="px-4 pt-3 pb-4 border-t border-[#e6e2da] dark:border-[#2d2d48] flex-shrink-0">
           <p className="text-[10px] uppercase tracking-wide text-[#aaa] dark:text-[#475569] font-semibold mb-2">
-            引用来源
+            引用来源 · {sources.length}
           </p>
-          <div className="flex flex-col gap-1">
-            {sources.map((src) => (
-              <div
-                key={src}
-                className="text-xs px-2 py-1.5 rounded-md bg-[#f5f2eb] dark:bg-[#1e1e35] border border-[#e6e2da] dark:border-[#2d2d48] text-[#666] dark:text-[#94a3b8]"
-              >
-                🔗 {src}
-              </div>
-            ))}
+          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+            {sources.map((src) => {
+              const label = src.includes("|") ? src.split("|")[0].trim() : src;
+              return (
+                <span
+                  key={src}
+                  title={src}
+                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-[#f0ece3] dark:bg-[#22223a] border border-[#e6e2da] dark:border-[#3a3a55] text-[#555] dark:text-[#94a3b8] max-w-[140px] truncate"
+                >
+                  🔗 {label}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
