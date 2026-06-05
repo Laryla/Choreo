@@ -10,17 +10,16 @@ export interface ChoreoConfig {
 const CONFIG_DIR = join(homedir(), '.choreo');
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
 
-const DEFAULT_CONFIG: ChoreoConfig = {
-  apiUrl: process.env.CHOREO_API_URL ?? 'http://localhost:8000',
-  theme: '#6366f1',
-};
-
 export function loadConfig(): ChoreoConfig {
-  if (!existsSync(CONFIG_PATH)) return { ...DEFAULT_CONFIG };
+  const defaults: ChoreoConfig = {
+    apiUrl: process.env.CHOREO_API_URL ?? 'http://localhost:8000',
+    theme: '#6366f1',
+  };
+  if (!existsSync(CONFIG_PATH)) return defaults;
   try {
-    return { ...DEFAULT_CONFIG, ...JSON.parse(readFileSync(CONFIG_PATH, 'utf-8')) };
+    return { ...defaults, ...JSON.parse(readFileSync(CONFIG_PATH, 'utf-8')) };
   } catch {
-    return { ...DEFAULT_CONFIG };
+    return defaults;
   }
 }
 

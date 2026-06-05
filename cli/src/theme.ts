@@ -12,6 +12,9 @@ export interface Theme {
 }
 
 export function createTheme(hexColor: string): Theme {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hexColor)) {
+    throw new Error(`Invalid hex color: ${hexColor}`);
+  }
   return {
     primary:  (t) => chalk.hex(hexColor)(t),
     dim:      (t) => chalk.hex('#475569')(t),
