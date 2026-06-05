@@ -28,6 +28,19 @@ def _get_collectors() -> list[BaseCollector]:
     return collectors
 
 
+def _save_raw_log(content: str, week: str, settings) -> None:
+    """将采集到的原始日志写入 raw/，文件名按周去重覆盖。"""
+    try:
+        from pathlib import Path
+        raw_dir = Path(settings.KNOWLEDGE_BASE_DIR).expanduser() / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"claude-code-log-{week}.md"
+        (raw_dir / filename).write_text(content, encoding="utf-8")
+        logger.info("原始日志已保存：%s", filename)
+    except Exception as exc:
+        logger.warning("原始日志保存失败: %r", exc)
+
+
 async def collect_all(lookback_days: int = 7) -> str:
     """运行所有采集器并拼接输出。"""
     since = datetime.now() - timedelta(days=lookback_days)
@@ -62,6 +75,9 @@ async def update_profile() -> None:
 
     today = datetime.now().strftime("%Y-%m-%d")
     week = datetime.now().strftime("%Y-W%W")
+
+    # 原始日志存入 raw/，供后续 ingest 编译进 wiki
+    _save_raw_log(collected_data, week, settings)
 
     prompt = USER_PROFILE_PROMPT.format(
         week=week,

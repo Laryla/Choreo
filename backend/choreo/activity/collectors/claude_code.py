@@ -18,6 +18,9 @@ _SENSITIVE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_MAX_PER_PROJECT = 8_000   # 每个项目最多 8K 字符
+_MAX_TOTAL = 40_000        # 所有项目合计上限
+
 
 def _desensitize(text: str) -> str:
     return _SENSITIVE_RE.sub(
@@ -27,20 +30,25 @@ def _desensitize(text: str) -> str:
 
 
 class ClaudeCodeCollector(BaseCollector):
-    """通过 claude-code-log CLI + sessions-index.json 采集 Claude Code 会话行为。"""
+    """通过 claude-code-log CLI + JSONL mtime 采集 Claude Code 会话行为。"""
 
     def __init__(self, claude_projects_dir: Path | None = None) -> None:
         self._dir = claude_projects_dir or _DEFAULT_PROJECTS_DIR
 
-    async def collect(self, since: datetime, max_chars: int = 40_000) -> str:
+    async def collect(self, since: datetime, max_chars: int = _MAX_TOTAL) -> str:
         if not self._dir.exists():
             return ""
 
-        parts: list[str] = []
+        # 按最近活跃时间排序，优先采集最活跃的项目
+        project_dirs = [d for d in self._dir.iterdir() if d.is_dir()]
+        project_dirs.sort(key=lambda d: self._last_active(d), reverse=True)
 
-        for project_dir in sorted(self._dir.iterdir()):
-            if not project_dir.is_dir():
-                continue
+        parts: list[str] = []
+        total_chars = 0
+
+        for project_dir in project_dirs:
+            if total_chars >= max_chars:
+                break
 
             sessions = self._recent_sessions(project_dir / "sessions-index.json", since)
             if not sessions:
@@ -50,9 +58,18 @@ class ClaudeCodeCollector(BaseCollector):
             total_msgs = sum(s.get("message_count", 0) for s in sessions)
             project_name = project_dir.name.replace("-", "/").strip("/")
 
+            body = _desensitize(content).strip() if content.strip() else "（无详细内容）"
+
+            # 每个项目限制字符数，防止单项目吃掉所有配额
+            remaining = max_chars - total_chars - 200  # 留 header 空间
+            per_limit = min(_MAX_PER_PROJECT, remaining)
+            if len(body) > per_limit:
+                body = body[:per_limit] + f"\n...（项目内容已截断）"
+
             header = f"### 项目: {project_name}（{len(sessions)} 个会话，约 {total_msgs} 条消息）"
-            body = _desensitize(content) if content.strip() else "（无详细内容）"
-            parts.append(f"{header}\n\n{body}")
+            part = f"{header}\n\n{body}"
+            parts.append(part)
+            total_chars += len(part)
 
         if not parts:
             return ""
@@ -60,14 +77,21 @@ class ClaudeCodeCollector(BaseCollector):
         start = since.strftime("%Y-%m-%d")
         end = datetime.now().strftime("%Y-%m-%d")
         result = f"=== Claude Code 会话（{start} ~ {end}）===\n\n" + "\n\n---\n\n".join(parts)
-        if len(result) > max_chars:
-            result = result[:max_chars] + f"\n\n...（已截断，原始长度 {len(result)} 字符）"
         return result
+
+    def _last_active(self, project_dir: Path) -> float:
+        """返回项目最近 JSONL 的 mtime，用于排序。"""
+        try:
+            jsonl_files = list(project_dir.glob("*.jsonl"))
+            if not jsonl_files:
+                return 0.0
+            return max(f.stat().st_mtime for f in jsonl_files)
+        except Exception:
+            return 0.0
 
     def _recent_sessions(self, index_path: Path, since: datetime) -> list[dict]:
         since_ts = since.timestamp()
 
-        # 优先读 sessions-index.json
         if index_path.exists():
             try:
                 data = json.loads(index_path.read_text(encoding="utf-8"))
@@ -87,7 +111,7 @@ class ClaudeCodeCollector(BaseCollector):
             except Exception:
                 pass
 
-        # Fallback：用 JSONL 文件修改时间判断是否有近期会话
+        # Fallback：用 JSONL 文件修改时间
         project_dir = index_path.parent
         recent_jsonl = [
             f for f in project_dir.glob("*.jsonl")
@@ -99,7 +123,6 @@ class ClaudeCodeCollector(BaseCollector):
         import tempfile
         tmp_file = None
         try:
-            # claude-code-log 写文件而非 stdout，使用临时 .md 文件接收输出
             with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as f:
                 tmp_file = Path(f.name)
 
@@ -115,7 +138,7 @@ class ClaudeCodeCollector(BaseCollector):
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            await asyncio.wait_for(proc.communicate(), timeout=120)
+            await asyncio.wait_for(proc.communicate(), timeout=60)  # 单项目 60s
             if tmp_file.exists():
                 return tmp_file.read_text(encoding="utf-8", errors="replace")
             return ""

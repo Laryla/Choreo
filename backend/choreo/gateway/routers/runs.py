@@ -1,7 +1,7 @@
 import asyncio
 import json
 import uuid
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 from langchain_core.messages import AIMessageChunk
@@ -10,6 +10,7 @@ from choreo.agents import get_agent
 from choreo.store.thread_store import thread_store
 from choreo.agents.middlewares import pop_decision
 from choreo.sandbox import get_sandbox_manager
+from choreo.auth.deps import get_current_user_id
 
 router = APIRouter()
 
@@ -42,7 +43,11 @@ def _serialize(obj):
 
 
 @router.post("/{thread_id}/runs/stream")
-async def stream_run(thread_id: str, body: RunInput):
+async def stream_run(
+    thread_id: str,
+    body: RunInput,
+    user_id: str = Depends(get_current_user_id),
+):
     if not await thread_store.get(thread_id):
         raise HTTPException(404, "thread not found")
 
@@ -54,7 +59,9 @@ async def stream_run(thread_id: str, body: RunInput):
     if body.input is None:
         resume_decision = pop_decision(thread_id)
 
-    asyncio.create_task(_run_agent(run_id, thread_id, body.input, queue, resume_decision, body.context))
+    context = body.context or {}
+    context["user_id"] = user_id
+    asyncio.create_task(_run_agent(run_id, thread_id, body.input, queue, resume_decision, context))
 
     return StreamingResponse(
         _read_queue(run_id, queue),

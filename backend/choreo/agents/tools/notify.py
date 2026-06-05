@@ -17,18 +17,64 @@ def send_notification(content: str, channel: str = "feishu", subject: str = "Cho
     return f"未知 channel: {channel}"
 
 
+_FEISHU_CARD_LIMIT = 3800  # 飞书卡片 markdown 元素字符上限，留余量
+
+
+def _make_card(content: str) -> dict:
+    """构建飞书卡片消息（支持 Markdown 渲染）。"""
+    return {
+        "config": {"wide_screen_mode": True},
+        "elements": [{"tag": "markdown", "content": content}],
+    }
+
+
+def _split_content(content: str, limit: int = _FEISHU_CARD_LIMIT) -> list[str]:
+    """按段落切分超长内容，每段不超过 limit 字符。"""
+    if len(content) <= limit:
+        return [content]
+
+    chunks: list[str] = []
+    paragraphs = content.split("\n\n")
+    current = ""
+    for para in paragraphs:
+        # 单个段落超长时强制切断
+        if len(para) > limit:
+            if current:
+                chunks.append(current.strip())
+                current = ""
+            for i in range(0, len(para), limit):
+                chunks.append(para[i:i + limit])
+            continue
+        candidate = (current + "\n\n" + para).lstrip() if current else para
+        if len(candidate) > limit:
+            chunks.append(current.strip())
+            current = para
+        else:
+            current = candidate
+    if current.strip():
+        chunks.append(current.strip())
+    return chunks
+
+
 def _send_feishu(content: str) -> str:
-    """使用已配置的飞书 Bot 发送消息到 FEISHU_NOTIFY_CHAT_ID。"""
+    """使用已配置的飞书 Bot 发送消息到 FEISHU_NOTIFY_CHAT_ID。内容过长时自动分段发送。"""
+    chunks = _split_content(content)
+    total = len(chunks)
+
     chat_id = settings.FEISHU_NOTIFY_CHAT_ID
     if not chat_id:
-        # 回退到群机器人 Webhook
         if settings.FEISHU_WEBHOOK_URL:
             import httpx
-            r = httpx.post(
-                settings.FEISHU_WEBHOOK_URL,
-                json={"msg_type": "text", "content": {"text": content}},
-            )
-            return f"飞书 Webhook 发送{'成功' if r.status_code == 200 else f'失败: {r.text}'}"
+            errors = []
+            for i, chunk in enumerate(chunks, 1):
+                text = chunk if total == 1 else f"({i}/{total})\n\n{chunk}"
+                r = httpx.post(
+                    settings.FEISHU_WEBHOOK_URL,
+                    json={"msg_type": "interactive", "card": _make_card(text)},
+                )
+                if r.status_code != 200:
+                    errors.append(f"第{i}段失败: {r.text}")
+            return "飞书 Webhook 发送成功" if not errors else f"部分失败: {'; '.join(errors)}"
         return "未配置 FEISHU_NOTIFY_CHAT_ID 或 FEISHU_WEBHOOK_URL"
 
     if not settings.FEISHU_APP_ID or not settings.FEISHU_APP_SECRET:
@@ -44,22 +90,25 @@ def _send_feishu(content: str) -> str:
             .app_secret(settings.FEISHU_APP_SECRET)
             .build()
         )
-        request = (
-            CreateMessageRequest.builder()
-            .receive_id_type("chat_id")
-            .request_body(
-                CreateMessageRequestBody.builder()
-                .receive_id(chat_id)
-                .msg_type("text")
-                .content(json.dumps({"text": content}))
+        errors = []
+        for i, chunk in enumerate(chunks, 1):
+            text = chunk if total == 1 else f"({i}/{total})\n\n{chunk}"
+            request = (
+                CreateMessageRequest.builder()
+                .receive_id_type("chat_id")
+                .request_body(
+                    CreateMessageRequestBody.builder()
+                    .receive_id(chat_id)
+                    .msg_type("interactive")
+                    .content(json.dumps(_make_card(text)))
+                    .build()
+                )
                 .build()
             )
-            .build()
-        )
-        resp = client.im.v1.message.create(request)
-        if resp.success():
-            return "飞书通知发送成功"
-        return f"飞书通知失败: code={resp.code} msg={resp.msg}"
+            resp = client.im.v1.message.create(request)
+            if not resp.success():
+                errors.append(f"第{i}段: code={resp.code} msg={resp.msg}")
+        return "飞书通知发送成功" if not errors else f"部分失败: {'; '.join(errors)}"
     except ImportError:
         return "lark-oapi 未安装，请 uv add lark-oapi"
     except Exception as e:

@@ -99,14 +99,9 @@ class AiosSandbox(BaseSandbox):
                         logger.info("[sandbox] reusing running container: %s port=%s", _container_name, bindings[0]["HostPort"])
                         self._container = existing
                         return f"http://localhost:{bindings[0]['HostPort']}"
-                # Stopped but not removed — restart it
-                logger.info("[sandbox] restarting stopped container: %s", _container_name)
-                existing.start()
-                existing.reload()
-                self._container = existing
-                bindings = existing.ports.get(f"{_CONTAINER_PORT}/tcp") or []
-                if bindings:
-                    return f"http://localhost:{bindings[0]['HostPort']}"
+                # Stopped — remove and recreate to avoid init script re-running on /home/gem
+                logger.info("[sandbox] removing stopped container: %s", _container_name)
+                existing.remove(force=True)
             except Exception:
                 pass  # Container doesn't exist, create it
 
@@ -114,12 +109,12 @@ class AiosSandbox(BaseSandbox):
             port_binding = self._host_port or None
             volumes: dict = {}
             environment: dict = {}
-            # Mount outside /home/gem to avoid interfering with container init
             if self._skills_dir and self._skills_dir.exists():
                 volumes[str(self._skills_dir)] = {"bind": "/choreo-skills", "mode": "ro"}
                 environment["SKILLS_DIR"] = "/choreo-skills"
             if self._output_dir:
                 self._output_dir.mkdir(parents=True, exist_ok=True)
+                # 挂载到 /home/gem 外避免干扰容器初始化，启动后通过软链接映射到 workspace
                 volumes[str(self._output_dir)] = {"bind": "/choreo-output", "mode": "rw"}
                 environment["OUTPUT_DIR"] = "/choreo-output"
             container = client.containers.run(
