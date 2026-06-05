@@ -16,6 +16,7 @@ function extractSources(content: string): string[] {
 
 function WikiDetail({ page, onClose }: { page: WikiPageMeta; onClose: () => void }) {
   const { data } = useWikiPage(page.path);
+  const sources = data ? extractSources(data.content) : [];
 
   return (
     <>
@@ -37,13 +38,13 @@ function WikiDetail({ page, onClose }: { page: WikiPageMeta; onClose: () => void
           <div className="text-sm text-[#aaa] dark:text-[#475569]">加载中…</div>
         )}
       </div>
-      {data && extractSources(data.content).length > 0 && (
+      {sources.length > 0 && (
         <div className="p-4 border-t border-[#e6e2da] dark:border-[#2d2d48]">
           <p className="text-[10px] uppercase tracking-wide text-[#aaa] dark:text-[#475569] font-semibold mb-2">
             引用来源
           </p>
           <div className="flex flex-col gap-1">
-            {extractSources(data.content).map((src) => (
+            {sources.map((src) => (
               <div
                 key={src}
                 className="text-xs px-2 py-1.5 rounded-md bg-[#f5f2eb] dark:bg-[#1e1e35] border border-[#e6e2da] dark:border-[#2d2d48] text-[#666] dark:text-[#94a3b8]"
@@ -94,8 +95,8 @@ export default function DetailPanel({ item, onClose }: Props) {
 
   return (
     <div
-      className={`flex flex-col w-96 flex-shrink-0 bg-white dark:bg-[#16162a] border-l border-[#e6e2da] dark:border-[#2d2d48] overflow-hidden transition-all duration-200 ${
-        visible ? "translate-x-0" : "translate-x-full w-0"
+      className={`flex flex-col flex-shrink-0 bg-white dark:bg-[#16162a] border-l border-[#e6e2da] dark:border-[#2d2d48] overflow-hidden transition-all duration-200 ${
+        visible ? "w-96 translate-x-0" : "w-0 translate-x-full"
       }`}
     >
       {item?.kind === "wiki" && <WikiDetail page={item.data} onClose={onClose} />}
