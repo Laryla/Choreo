@@ -1,4 +1,5 @@
 import logging
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -27,14 +28,22 @@ class RawFile(BaseModel):
     name: str
     size: int
     modified_at: int
+    compiled: bool
 
 
 @router.get("/raw/", response_model=list[RawFile])
 async def list_raw():
     raw_dir = _kb_root() / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
+    wiki_dir = _kb_root() / "wiki"
+    compiled = _compiled_stems(wiki_dir)
     return [
-        RawFile(name=f.name, size=f.stat().st_size, modified_at=int(f.stat().st_mtime))
+        RawFile(
+            name=f.name,
+            size=f.stat().st_size,
+            modified_at=int(f.stat().st_mtime),
+            compiled=Path(f.name).stem.lower() in compiled,
+        )
         for f in sorted(raw_dir.iterdir())
         if f.is_file()
     ]
@@ -86,17 +95,60 @@ async def upload_raw(file: UploadFile = File(...)):
 
 _WIKI_CONTENT_DIRS = {"concepts", "entities", "sources", "comparisons"}
 
+_DIR_TO_TYPE: dict[str, str] = {
+    "concepts": "concept",
+    "entities": "entity",
+    "sources": "source-summary",
+    "comparisons": "comparison",
+}
+
+_WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
+_FRONTMATTER_RE = re.compile(r"^---\s*\n.*?\n---\s*\n", re.DOTALL)
+
+
+def _parse_wiki_meta(md_file: Path, wiki_dir: Path) -> dict:
+    """从 wiki markdown 文件提取 type / summary / ref_count。"""
+    rel = md_file.relative_to(wiki_dir)
+    dir_name = rel.parts[0]
+    wiki_type = _DIR_TO_TYPE.get(dir_name, "concept")
+
+    text = md_file.read_text(encoding="utf-8", errors="replace")
+    body = _FRONTMATTER_RE.sub("", text, count=1).strip()
+    summary = body[:80].replace("\n", " ")
+    ref_count = len(_WIKILINK_RE.findall(text))
+
+    return {"type": wiki_type, "summary": summary, "ref_count": ref_count}
+
+
+def _compiled_stems(wiki_dir: Path) -> set[str]:
+    """返回在 wiki 页面中被 [[...]] 引用过的词条名（小写 stem 集合）。"""
+    stems: set[str] = set()
+    if not wiki_dir.exists():
+        return stems
+    for md in wiki_dir.rglob("*.md"):
+        for match in _WIKILINK_RE.finditer(md.read_text(encoding="utf-8", errors="replace")):
+            stems.add(match.group(1).strip().lower())
+    return stems
+
 
 @router.get("/wiki/")
 async def list_wiki():
     wiki_dir = _kb_root() / "wiki"
     if not wiki_dir.exists():
         return []
-    return [
-        {"path": str(md.relative_to(wiki_dir)), "name": md.stem, "modified_at": int(md.stat().st_mtime)}
-        for md in sorted(wiki_dir.rglob("*.md"))
-        if md.relative_to(wiki_dir).parts[0] in _WIKI_CONTENT_DIRS
-    ]
+    results = []
+    for md in sorted(wiki_dir.rglob("*.md")):
+        rel = md.relative_to(wiki_dir)
+        if rel.parts[0] not in _WIKI_CONTENT_DIRS:
+            continue
+        meta = _parse_wiki_meta(md, wiki_dir)
+        results.append({
+            "path": str(rel),
+            "name": md.stem,
+            "modified_at": int(md.stat().st_mtime),
+            **meta,
+        })
+    return results
 
 
 @router.get("/wiki/{page_path:path}")
