@@ -17,7 +17,8 @@ export async function* streamRun(
     streamMode: ['messages', 'updates', 'custom', 'tasks'],
   };
   if (modelName) {
-    options.config = { configurable: { model_name: modelName } };
+    // Backend reads model_name from RunInput.context, not config.configurable
+    options.context = { model_name: modelName };
   }
   const stream = client.runs.stream(threadId, 'agent', options);
   for await (const chunk of stream as AsyncIterable<StreamChunk>) {
