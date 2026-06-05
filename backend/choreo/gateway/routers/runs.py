@@ -196,10 +196,40 @@ async def _run_agent(
         review_started = False
         if not isinstance(run_input, Command):
             try:
-                from choreo.skills.review_worker import extract_invoked_skills, maybe_start_review
+                from choreo.skills.review_worker import extract_invoked_skills, maybe_start_review, evaluate_for_suggestion
                 agent_state = await get_agent().aget_state(config)
                 final_messages = agent_state.values.get("messages", [])
                 invoked_skills = extract_invoked_skills(final_messages)
+
+                # 快速评估是否值得建议保存为新技能（5s 超时）
+                try:
+                    suggestion = await asyncio.wait_for(
+                        evaluate_for_suggestion(final_messages), timeout=5.0
+                    )
+                except asyncio.TimeoutError:
+                    suggestion = None
+
+                if suggestion:
+                    # 持久化 suggestion，供切换线程后仍可查看
+                    import time as _time
+                    from choreo.db import SkillSuggestionRow, SessionLocal
+                    async with SessionLocal() as sess:
+                        # 覆盖同线程的旧建议（每线程只保留最新一条）
+                        from sqlalchemy import delete
+                        await sess.execute(
+                            delete(SkillSuggestionRow).where(SkillSuggestionRow.thread_id == thread_id)
+                        )
+                        sess.add(SkillSuggestionRow(
+                            thread_id=thread_id,
+                            category=suggestion["category"],
+                            name=suggestion["name"],
+                            description=suggestion["description"],
+                            content=suggestion["content_draft"],
+                            created_at=int(_time.time()),
+                        ))
+                        await sess.commit()
+                    await queue.put({"event": "skill_suggestion", "data": suggestion})
+
                 review_started = await maybe_start_review(thread_id, final_messages, invoked_skills)
             except Exception:
                 pass  # Never crash SSE over review failure

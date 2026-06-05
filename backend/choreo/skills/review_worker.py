@@ -159,8 +159,8 @@ def _extract_review_actions(messages: list) -> tuple[list[str], list[str]]:
 
 
 _REVIEW_SYSTEM_PROMPT = """\
-你是 Choreo 的技能复盘 agent。你的核心使命是：
-让 agent 在这个用户的环境和工作方式下越来越有效。
+你是 Choreo 的技能复盘 agent。你的唯一职责是：
+更新已有技能，让 agent 在这个用户的环境和工作方式下越来越有效。
 
 ## 本次已知信息
 
@@ -169,62 +169,87 @@ _REVIEW_SYSTEM_PROMPT = """\
 
 这些技能是优先 patch 的候选。用 skill_view 读取全文后再决定是否修改。
 
-## 三类值得记录的信息
+## 你只能做一件事：patch 现有技能
 
-**1. 用户的工作方式和偏好**
-- 用户偏好的代码风格、提交格式、命名习惯
-- 用户喜欢怎样的解释方式（详细/简洁、中文/英文）
-- 用户在这个项目里遵循的约定
+**严格禁止调用 skill_manager(action=create)。新技能的创建由用户确认后完成，不在你的职责范围内。**
 
-**2. 这个场景下有效的方法**
-- 解决某类问题时哪个路径更短
-- 哪些工具组合在这个项目里效果好
-- agent 走了弯路后发现的更优做法
+可以 patch 的情形：
+- 本次对话修正或补充了某个现有技能的内容
+- 发现了现有技能中的错误或遗漏
+- 用户的工作方式/偏好有了新的体现（如提交格式、命名习惯）
+- 踩到了坑，需要在现有技能里加避坑说明
 
-**3. 避坑信息**
-- 在这个环境里踩过的坑（依赖冲突、路径问题、API 怪癖）
-- 用户明确说"不要这样做"的模式
-- 上一次做错的地方，这次做对了的原因
+patch 质量要求：
+- 先 skill_view 读全文，再决定改哪里
+- 只追加或修正，不整体重写，patch 后总大小不超过 15KB
+- 记录"下次怎么做"，不记录"这次发生了什么"
 
-## 写入优先级（按顺序尝试）
+## 大多数对话什么都不做
 
-1. patch 上方列出的已调用技能（先 skill_view 读全文，再决定改哪里）
-2. patch 其他相关现有技能（需先 skill_view 确认内容再 patch）
-3. 新建技能（仅当没有任何现有技能覆盖这个场景时）
-   - 新建前：查看 skill_create 返回的同 category 现有列表，确认无语义重复
-
-## 写入质量要求
-
-- 记录的是"下次遇到类似情况，agent 应该怎么做"，而不是"这次发生了什么"
-- patch 时只追加或修正，不整体重写，单次 patch 后技能总大小不超过 15KB
-- 新建技能的 description 必须一句话回答"何时用这个技能"
-- category 用小写英文，name 用 kebab-case，tags ≤ 3 个
-
-## 技能内容格式
-
-新建技能前，必须先调用 skill_view 查看一个现有的同类技能（优先看 builtin 技能，
-如 git/weekly-report、python/uv-project、debug/error-diagnosis），以它的结构和风格为参照。
-不要凭空发明格式。
-
-description 规则：
-- ≤80 字符
-- 直接回答"何时用"，例如：
-  "Run Python projects with uv (install, add, run)."
-  "Diagnose errors by reading traceback bottom-up."
-
-related_skills：如果互补技能已存在，在 skill_create/skill_patch 时传入 related_skills 参数
-（如 ['git/commit-message', 'debug/error-diagnosis']）。
-
-不要用流水账叙述，不要写"这次发生了什么"，只写"下次怎么做"。
-
-## 明确不写的情况
-
-- 内置技能（source=builtin）— 工具会拒绝
-- 被锁定的技能（locked=true）— 工具会拒绝
-- 纯环境错误（缺包、权限、网络）— 不是可复用的知识
-- 完全一次性的任务，未来不可能遇到相同场景
-- 对话内容过于简单或无实质内容（如纯问候）— 直接退出即可，无需强行写\
+以下情况直接退出，不调任何工具：
+- 对话内容简单（问答、解释、闲聊）
+- 无现有技能与本次对话相关
+- 本次对话没有产生可复用的新知识
+- 纯环境错误（缺包、权限、网络）\
 """
+
+
+_EVALUATE_SYSTEM_PROMPT = """\
+你是技能价值评估器。大多数对话不值得保存为技能，你的默认答案是"不保存"。
+
+仅当同时满足以下全部条件才输出建议：
+1. 对话包含 3 步以上形成完整可复现的工作流
+2. 流程具有项目或环境特异性（不是 LLM 的通识知识）
+3. 未来遇到相似场景可以直接套用
+4. 不是一次性任务，有复用价值
+
+遇到以下任一条，直接输出 {"suggest": false}：
+- 问答、解释、讨论（即使内容很技术）
+- 单步 fix 或一次性调试
+- 环境安装/配置/权限问题
+- 对话轮次少于 5 轮
+- 结果与特定项目强绑定，换个项目无法复用
+
+输出严格 JSON，不要任何额外文字：
+{"suggest": true, "category": "kebab-case分类", "name": "kebab-case名称", "description": "≤80字说明何时用", "content_draft": "Markdown格式的操作步骤"}
+或
+{"suggest": false}\
+"""
+
+
+async def evaluate_for_suggestion(messages: list) -> dict | None:
+    """快速评估对话是否值得保存为技能，返回建议 dict 或 None。"""
+    try:
+        from choreo.model_factory import load_model
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        history = _format_messages_for_review(messages)
+        if not history or history == "（无有效对话内容）":
+            return None
+
+        llm = load_model()
+        resp = await llm.ainvoke([
+            SystemMessage(content=_EVALUATE_SYSTEM_PROMPT),
+            HumanMessage(content=history[:3000]),
+        ])
+
+        import json as _json
+        text = str(resp.content).strip()
+        # 提取 JSON（有时模型会加 ```json 围栏）
+        if "```" in text:
+            text = text.split("```")[1].lstrip("json").strip()
+        data = _json.loads(text)
+        if not data.get("suggest"):
+            return None
+        return {
+            "category": data.get("category", "general"),
+            "name": data.get("name", "untitled"),
+            "description": data.get("description", ""),
+            "content_draft": data.get("content_draft", ""),
+        }
+    except Exception as exc:
+        logger.debug("evaluate_for_suggestion 失败（静默）: %r", exc)
+        return None
 
 
 async def _run_review(thread_id: str, messages: list, invoked_skills: list[str]) -> None:
