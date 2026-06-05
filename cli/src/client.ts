@@ -6,11 +6,22 @@ export interface Decision {
   edited_action?: { name: string; args: Record<string, unknown> };
 }
 
+export interface ModelInfo {
+  name: string;
+}
+
+export interface ThreadInfo {
+  thread_id: string;
+  metadata?: { title?: string };
+}
+
 export interface ApiClient {
   createThread(): Promise<string>;
   submitState(threadId: string, decisions: Decision[]): Promise<void>;
   acceptSkillSuggestion(threadId: string): Promise<void>;
   dismissSkillSuggestion(threadId: string): Promise<void>;
+  listModels(): Promise<ModelInfo[]>;
+  getThreads(): Promise<ThreadInfo[]>;
 }
 
 export function createClient(apiUrl: string): ApiClient {
@@ -45,6 +56,16 @@ export function createClient(apiUrl: string): ApiClient {
 
     async dismissSkillSuggestion(threadId) {
       await request(`/threads/${threadId}/skill-suggestion/dismiss`, { method: 'POST' });
+    },
+
+    async listModels() {
+      const res = await request('/models/');
+      return res.json() as Promise<ModelInfo[]>;
+    },
+
+    async getThreads() {
+      const res = await request('/threads/');
+      return res.json() as Promise<ThreadInfo[]>;
     },
   };
 }

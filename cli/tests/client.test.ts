@@ -41,3 +41,30 @@ describe('createClient', () => {
     await expect(client.createThread()).rejects.toThrow('HTTP 404');
   });
 });
+
+describe('listModels', () => {
+  it('returns model name list from /models/', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ name: 'deepseek-chat' }, { name: 'claude-sonnet-4-6' }],
+    } as Response);
+    const { createClient } = await import('../src/client.js');
+    const client = createClient('http://localhost:8000');
+    const models = await client.listModels();
+    expect(models).toEqual([{ name: 'deepseek-chat' }, { name: 'claude-sonnet-4-6' }]);
+    expect(fetch).toHaveBeenCalledWith('http://localhost:8000/models/', expect.any(Object));
+  });
+});
+
+describe('getThreads', () => {
+  it('returns thread list from /threads/', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ thread_id: 'abc-123', metadata: { title: 'test' } }],
+    } as Response);
+    const { createClient } = await import('../src/client.js');
+    const client = createClient('http://localhost:8000');
+    const threads = await client.getThreads();
+    expect(threads[0].thread_id).toBe('abc-123');
+  });
+});
