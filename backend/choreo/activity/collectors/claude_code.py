@@ -111,28 +111,48 @@ class ClaudeCodeCollector(BaseCollector):
     async def _compress(self, project_name: str, new_raw: str, existing: str) -> str:
         try:
             from choreo.model_factory import load_model
-            from langchain_core.messages import HumanMessage
+            from langchain_core.messages import HumanMessage, SystemMessage
 
             llm = load_model()
             raw_excerpt = _desensitize(new_raw)[:_RAW_COMPRESS_LIMIT]
 
+            system = (
+                "# Role: 工作记录压缩器\n\n"
+                "## Profile\n"
+                "面向项目工作记录的高密度摘要与更新合并专家，能够将新增会话记录精准融入既有摘要，"
+                "去重、取精、保序，在严格字数约束下输出清晰、准确、可执行的最新版本摘要。\n\n"
+                "## Skills\n"
+                "- 关键要点识别：抓取进展、决策、变更、问题/风险、行动项、里程碑、负责人、截止日期等。\n"
+                "- 去重合并：与现有摘要比对相同或相似事项，合并更新，避免重复与信息矛盾。\n"
+                "- 冲突解析：对版本差异与口径冲突，优先采用更近时点、更具体的数据与结论。\n"
+                "- 结构对齐：继承现有摘要的叙述风格（条目/段落/分号短句），术语、格式保持一致。\n"
+                "- 噪声过滤：去除寒暄、情绪性与无信息量内容，仅保留与项目相关的事实与结论。\n\n"
+                "## Rules\n"
+                "- 准确性优先：仅基于输入的明确信息整合，不臆测、不扩写。\n"
+                "- 直接输出摘要：不添加标题、前缀、后缀、解释或致谢，不输出「摘要：」等引导词。\n"
+                "- 客观中性：使用客观表述，避免主观评价或无依据的判断。\n"
+                "- 不新增信息：不补充缺失背景，不推断不可证实的因果或数据。\n"
+                f"- 严格字数：最终输出必须 ≤ {_SUMMARY_MAX} 字，必要时按重要性裁剪。\n\n"
+                "## Workflow\n"
+                "1. 解析输入：识别项目范围与上下文，从新增记录提取进展、决策、问题/风险、行动项。\n"
+                "2. 合并去重：对齐同一事项，保留更具体与更新的内容，时间上以近期为准。\n"
+                "3. 压缩编排：优先呈现决策/里程碑、严重问题、关键行动项；使用紧凑短句或分号条目；"
+                f"确保 ≤ {_SUMMARY_MAX} 字。"
+            )
+
             if existing.strip():
-                prompt = (
-                    f"你是工作记录压缩器。\n\n"
-                    f"【现有摘要】（{project_name} 项目）：\n{existing}\n\n"
-                    f"【新增会话记录】：\n{raw_excerpt}\n\n"
-                    f"将新记录融入现有摘要，保留所有重要工作内容，控制在 {_SUMMARY_MAX} 字以内。"
-                    f"直接输出摘要，不要前缀。"
+                user = (
+                    f"项目：{project_name}\n\n"
+                    f"【现有摘要】\n{existing}\n\n"
+                    f"【新增会话记录】\n{raw_excerpt}"
                 )
             else:
-                prompt = (
-                    f"你是工作记录压缩器。\n\n"
-                    f"【会话记录】（{project_name} 项目）：\n{raw_excerpt}\n\n"
-                    f"用 {_SUMMARY_MAX} 字以内总结：做了什么、遇到什么问题、用了什么技术。"
-                    f"直接输出摘要，不要前缀。"
+                user = (
+                    f"项目：{project_name}\n\n"
+                    f"【会话记录】\n{raw_excerpt}"
                 )
 
-            resp = await llm.ainvoke([HumanMessage(content=prompt)])
+            resp = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=user)])
             return str(resp.content).strip()
 
         except Exception as exc:
