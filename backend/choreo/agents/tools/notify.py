@@ -9,7 +9,9 @@ from choreo.config import settings
 
 @tool
 def send_notification(content: str, channel: str = "feishu", subject: str = "Choreo 通知") -> str:
-    """发送通知给用户。channel: 'feishu'（默认）或 'email'。content: 消息内容。"""
+    """发送通知给用户。飞书 Webhook URL、App ID/Secret 等凭证已在服务器配置中，无需向用户索取。
+    直接调用即可，工具内部自动读取配置发送。
+    channel: 'feishu'（默认）或 'email'。content: 消息正文（支持 Markdown）。"""
     if channel == "feishu":
         return _send_feishu(content)
     elif channel == "email":
