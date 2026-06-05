@@ -41,14 +41,14 @@ export default function KnowledgeGrid({
 
   if (isEmpty) {
     return (
-      <div className="flex items-center justify-center h-full text-sm text-[#aaa] dark:text-[#475569]">
+      <div className="flex-1 flex items-center justify-center h-full text-sm text-[#aaa] dark:text-[#475569]">
         {q ? `未找到与「${query}」相关的内容` : "暂无内容"}
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="flex-1 min-w-0 h-full overflow-y-auto p-6">
       {filteredWiki.length > 0 && (
         <>
           <p className="text-xs font-semibold uppercase tracking-wide text-[#aaa] dark:text-[#475569] mb-3 pb-2 border-b border-[#e6e2da] dark:border-[#2d2d48]">
