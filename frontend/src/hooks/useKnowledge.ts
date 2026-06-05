@@ -13,12 +13,16 @@ export interface RawFile {
   name: string;
   size: number;
   modified_at: number;
+  compiled: boolean;
 }
 
 export interface WikiPageMeta {
   path: string;
   name: string;
   modified_at: number;
+  summary: string;
+  type: "concept" | "entity" | "source-summary" | "comparison";
+  ref_count: number;
 }
 
 export interface KBGraphData {
