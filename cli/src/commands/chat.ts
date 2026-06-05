@@ -19,14 +19,52 @@ function getGitBranch(): string {
   }
 }
 
-async function getActiveModel(apiUrl: string): Promise<string> {
+async function printStartup(apiUrl: string, branch: string, theme: ReturnType<typeof createTheme>): Promise<{ model: string; connected: boolean }> {
+  const o = process.stdout;
+
+  // ① Logo
+  o.write(`\n  ${theme.primary('🎼  CHOREO')}  ${theme.dim('v0.1.0')}\n\n`);
+
+  // ② Check backend
+  let connected = false;
+  let model = 'unknown';
   try {
     const r = await fetch(`${apiUrl}/models/active`);
-    const d = (await r.json()) as { name: string };
-    return d.name;
-  } catch {
-    return 'unknown';
+    if (r.ok) {
+      connected = true;
+      const d = (await r.json()) as { name: string };
+      model = d.name;
+    }
+  } catch { /* offline */ }
+
+  const ok  = (s: string) => theme.success('✓') + '  ' + s;
+  const err = (s: string) => theme.error('✗') + '  ' + s;
+  const dim = theme.dim.bind(theme);
+  const hint = (s: string) => `  ${theme.dim(s)}`;
+
+  // 后端行
+  if (connected) {
+    o.write(`  ${ok(dim('后端') + '  ')}${theme.success(apiUrl.replace(/^https?:\/\//, ''))}\n`);
+  } else {
+    o.write(`  ${err(dim('后端') + '  ')}${theme.error('无法连接 ' + apiUrl.replace(/^https?:\/\//, ''))}\n`);
+    o.write(`${hint('/config 修改地址，连接后自动重试')}\n`);
   }
+
+  // 模型行
+  o.write(`  ${ok(dim('模型') + '  ')}${theme.cyan(model)}${hint('  /model 切换')}\n`);
+
+  // 分支行
+  o.write(`  ${ok(dim('分支') + '  ')}${theme.success(branch)}\n`);
+
+  // 线程行
+  o.write(`  ${ok(dim('线程') + '  ')}${dim('新建')}${hint('  /history 恢复历史')}\n`);
+
+  // ③ 分隔 + 提示
+  o.write(`\n  ${dim('─'.repeat(44))}\n`);
+  o.write(`  ${dim('/')} 浏览命令  ·  ${dim('Ctrl+C')} 退出\n`);
+  o.write(`  ${dim('─'.repeat(44))}\n\n`);
+
+  return { model, connected };
 }
 
 export async function chatCommand(): Promise<void> {
@@ -37,10 +75,8 @@ export async function chatCommand(): Promise<void> {
   const renderer = new Renderer(theme);
 
   const branch = getGitBranch();
-  let currentModel = await getActiveModel(config.apiUrl);
-
-  renderer.statusBar(branch, currentModel);
-  console.log(`🎼 Choreo CLI  输入 /help 查看命令，Ctrl+C 退出\n`);
+  const { model } = await printStartup(config.apiUrl, branch, theme);
+  let currentModel = model;
 
   let threadId: string | null = null;
 
